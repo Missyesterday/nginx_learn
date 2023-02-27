@@ -2,6 +2,7 @@
 # Prerequisites
 *.d
 nginx
+nginx*
 # Compiled Object files
 *.slo
 *.lo
@@ -63,3 +64,4 @@ cmake-build-debug-aliyun_gcc
 cmake-build-debug-one_gcc
 .idea
 .DS_Store
+
