@@ -1,7 +1,7 @@
 ### C++ template
 # Prerequisites
 *.d
-
+nginx
 # Compiled Object files
 *.slo
 *.lo
