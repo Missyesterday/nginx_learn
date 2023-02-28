@@ -1,5 +1,3 @@
-
-
 #include <stdio.h>
 #include <stdlib.h>  //malloc
 #include <unistd.h>
@@ -9,9 +7,9 @@
 void sig_usr(int signo)
 {   
     //这里也malloc，这是错用，不可重入函数不能用在信号处理函数中；
-    //int* p;
-    //p = (int *) malloc (sizeof(int)); //用了不可重入函数；
-    //free(p);
+    int* p;
+    p = (int *) malloc (sizeof(int)); //用了不可重入函数；
+    free(p);
 
     if(signo == SIGUSR1)
     {
