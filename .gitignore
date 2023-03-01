@@ -1,19 +1,6 @@
 ### C++ template
 # Prerequisites
 *.d
-nginx
-nginx2
-c3/nginx3_4_1
-c3/nginx3_4_2
-c3/nginx3_5_1
-c3/nginx3_6_1
-c3/nginx3_6_2
-c3/nginx3_6_3
-c3/nginx3_7_1
-c3/nginx3_7_2
-c3
-nginx.c
-nginx2.c
 
 # Compiled Object files
 *.slo
