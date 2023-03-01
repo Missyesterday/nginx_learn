@@ -1,4 +1,4 @@
-通过学习nginx源码，将其中的模块添加到自己的代码中。
+通过学习nginx源码，将其中的模块添加到自己的代码中，并详细注释。
 
 源码下载：[https://nginx.org/download/nginx-1.14.2.tar.gz](https://nginx.org/download/nginx-1.14.2.tar.gz)
 
