@@ -3,7 +3,7 @@
 源码下载：[https://nginx.org/download/nginx-1.14.2.tar.gz](https://nginx.org/download/nginx-1.14.2.tar.gz)
 
 
-nginx的源码在`src/`目录下，使用VSCode查看源码。
+nginx的源码在`src/`目录下，可以使用VSCode查看源码。
 
 **nginx源码入口函数：**
 
@@ -24,7 +24,13 @@ nginx的源码在`src/`目录下，使用VSCode查看源码。
 -   `proc/`：专门存放和进程处理的相关`.c`文件
 -   `signal/`：专门存放和信号处理相关的`.c`文件
 
-## makefile
+## makefile说明
+-   根目录下三个文件：
+    -   `makefile`：编译项目的入口脚本，编译项目从这里开始，起总体控制作用
+    -   `config.mk`：配置脚本，被makefile包含，单独分离出来有利于修改，有变动的东西都可以写到这里
+    -   `common.mk`：核心的编译脚本，用来定义makefile的编译规则，依赖规则等，通用性很强，每个子目录的`makefile`都用到了这个脚本
+-   每个子目录都有一个`makefile`文件，每个文件都会包含根目录下的`common.mk`
+-   本项目的`makefile`不支持目录中还有子目录，只支持一级目录。
 
 ## 1. 读取配置文件
 1.  规定以`#`开始的为注释行，
