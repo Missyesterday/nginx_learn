@@ -46,3 +46,17 @@ nginx的源码在`src/`目录下，可以使用VSCode查看源码。
 1.   重新分配一块内存保存环境变量`environ`，用`environ`指向这块内存，原来的就算被修改也无所谓了。
 2.   再修改`argv[0]`所指向的内存，所以后面的参数是有可能覆盖的，但是无所谓，只要在修改前使用这些参数就行了
   
+
+## 3. 创建worker子进程
+
+官方的nginx中，一个master中，创建了多个worker进程。master进程被`sigsuspend()`阻塞, worker进程才是真正干活的.
+
+本项目在`proc/ngx_process_cycle.cxx/ngx_master_process_cycle()`函数中，做了如下事情：
+
+1.   调用`ngx_setproctitle()`设置主进程的标题
+2.   创建worker子进程`ngx_start_worker_processes()`
+3.   父进程继续在这个函数执行，子进程不会继续执行该函数！
+4.   二者都使用了信号量和信号处理函数
+
+>   也就是说, 父进程的主要流程在`ngx_master_procsess_cycle()`的循环中, 子进程的流程在`ngx_worker_process_cycle()`的循环中.
+

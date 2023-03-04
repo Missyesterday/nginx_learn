@@ -9,7 +9,8 @@ export INCLUDE_PATH = $(BUILD_ROOT)/_include
 #定义我们要编译的目录
 # 每增加一个目录, 就在这里增加
 BUILD_DIR = $(BUILD_ROOT)/signal/ \
-			$(BUILD_ROOT)/app/ 
+			$(BUILD_ROOT)/proc/	\
+			$(BUILD_ROOT)/app/	
 
 #编译时是否生成调试信息。GNU调试器可i以利用该信息
 export DEBUG = true

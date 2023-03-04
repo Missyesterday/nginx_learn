@@ -63,4 +63,5 @@ cmake-build-debug-aliyun_gcc
 cmake-build-debug-one_gcc
 .idea
 .DS_Store
+.nginx
 
