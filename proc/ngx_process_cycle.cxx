@@ -65,6 +65,8 @@ void ngx_master_process_cycle()
             strcat(title,g_os_argv[i]);
         }//end for
         ngx_setproctitle(title); //设置标题
+        //记录一下启动时间
+        ngx_log_error_core(NGX_LOG_NOTICE, 0, "%s %P 启动并开始运行.......!", title, ngx_pid);
     }
     //首先我设置主进程标题---------end
         
@@ -86,14 +88,14 @@ void ngx_master_process_cycle()
         //b)此时，一旦收到信号，便恢复原先的信号屏蔽【我们原来的mask在上边设置的，阻塞了多达10个信号，从而保证我下边的执行流程不会再次被其他信号截断】
         //c)调用该信号对应的信号处理函数
         //d)信号处理函数返回后，sigsuspend返回，使程序流程继续往下走
-        // printf("for进来了！"); //发现，如果print不加\n，无法及时显示到屏幕上，是行缓存问题，以往没注意；可参考https://blog.csdn.net/qq_26093511/article/details/53255970
+        // printf("for进来了！"); //发现，如果print不加\n，无法及时显示到屏幕上，是行缓存问题，以往没注意这个问题；可参考https://blog.csdn.net/qq_26093511/article/details/53255970
 
-    //    sigsuspend(&set); //阻塞在这里，等待一个信号，此时进程是挂起的，不占用cpu时间，只有收到信号才会被唤醒（返回),哪怕是被阻塞信号也能收到!执行完之后又阻塞了原来的信号屏蔽
+       sigsuspend(&set); //阻塞在这里，等待一个信号，此时进程是挂起的，不占用cpu时间，只有收到信号才会被唤醒（返回),哪怕是被阻塞信号也能收到!执行完之后又阻塞了原来的信号屏蔽
                          //此时master进程完全靠信号驱动干活    
 
     //    printf("执行到sigsuspend()下边来了\n");
         
-        printf("master进程休息1秒\n");      
+        // printf("master进程休息1秒\n");      
         sleep(1); //休息1秒        
         //以后扩充.......
 
@@ -151,14 +153,15 @@ static void ngx_worker_process_cycle(int inum,const char *pprocname)
     ngx_worker_process_init(inum);
     ngx_setproctitle(pprocname); //设置标题   
 
+    ngx_log_error_core(NGX_LOG_NOTICE,0,"%s %P 启动并开始运行......!",pprocname,ngx_pid); //设置标题时顺便记录下来进程名，进程id等信息到日志
     //暂时先放个死循环，我们在这个循环里一直不出来
     //setvbuf(stdout,NULL,_IONBF,0); //这个函数. 直接将printf缓冲区禁止， printf就直接输出了。
     for(;;)
     {
 
         //先sleep一下 以后扩充.......
-        printf("worker进程休息1秒");       
-        fflush(stdout); //刷新标准输出缓冲区，把输出缓冲区里的东西打印到标准输出设备上，则printf里的东西会立即输出；
+        // printf("worker进程休息1秒");       
+        // fflush(stdout); //刷新标准输出缓冲区，把输出缓冲区里的东西打印到标准输出设备上，则printf里的东西会立即输出；
         sleep(1); //休息1秒       
         //usleep(100000);
         // ngx_log_error_core(0, 0, "good--这是子进程，编号为%d,pid为%P！", inum,ngx_pid);

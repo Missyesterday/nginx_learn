@@ -92,12 +92,20 @@ void ngx_log_stderr(int err, const char *fmt, ...)
     *p++ = '\n'; //增加个换行符    
 
     //往标准错误【一般是屏幕】输出信息    
-    write(STDERR_FILENO,errstr,p - errstr); 
+    // write(STDERR_FILENO,errstr,p - errstr); 
 
     //测试代码：
     //printf("ngx_log_stderr()处理结果=%s\n",errstr);
     //printf("ngx_log_stderr()处理结果=%s",errstr);
     
+    //如果这是个有效的日志文件，本条件肯定成立，此时也才有意义将这个信息写到日志文件
+    if(ngx_log.fd > STDERR_FILENO)
+    {
+                //因为上边已经把err信息显示出来了，所以这里就不要显示了，否则显示重复了
+        err = 0;    //不要再次把错误信息弄到字符串里，否则字符串里重复了
+        p--;*p = 0; //把原来末尾的\n干掉，因为到ngx_log_err_core中还会加这个\n 
+        ngx_log_error_core(NGX_LOG_STDERR, err, (const char *)errstr); //这里有个\n，ngx_log_error_core还有个\n，所以写到日志会有一个空行多出来
+    }
     return;
 }
 
@@ -241,7 +249,7 @@ void ngx_log_init()
     if(plogname == NULL)
     {
         //没读到，就要给个缺省的路径文件名了
-        plogname = (u_char *) NGX_ERROR_LOG_PATH; //"logs/error.log" ,logs目录需要提前建立出来
+        plogname = (u_char *) NGX_ERROR_LOG_PATH; //"logs/error_default.log" ,logs目录需要提前建立出来
     }
 
     //ngx_log有两个成员: fd(日志对应文件描述符)和log_level(打印等级)
