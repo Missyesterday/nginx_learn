@@ -29,6 +29,19 @@ u_char *ngx_slprintf(u_char *buf, u_char *last, const char *fmt, ...)
 }
 
 //----------------------------------------------------------------------------------------------------------------------
+//和上边的ngx_snprintf非常类似
+u_char * ngx_snprintf(u_char *buf, size_t max, const char *fmt, ...)   //类printf()格式化函数，比较安全，max指明了缓冲区结束位置
+{
+    u_char   *p;
+    va_list   args;
+
+    va_start(args, fmt);
+    p = ngx_vslprintf(buf, buf + max, fmt, args);
+    va_end(args);
+    return p;
+}
+
+//----------------------------------------------------------------------------------------------------------------------
 //对于 nginx 自定义的数据结构进行标准格式化输出,就像 printf,vprintf 一样, 可以知道printf的原理
 //例如，给进来一个 "abc = %d",13   ,最终buf里得到的应该是   abc=13 这种结果
 //buf：往这里放数据
@@ -138,7 +151,14 @@ u_char *ngx_vslprintf(u_char *buf, u_char *last,const char *fmt,va_list args)
                     ui64 = (uint64_t) va_arg(args, u_int);    
                 }
                 break;  //这break掉，直接跳道switch后边的代码去执行,这种凡是break的，都不做fmt++;  *********************【switch后仍旧需要进一步处理】
-
+            case 'p':  
+                ui64 = (uintptr_t) va_arg(args, void *); 
+                hex = 2;    //标记以大写字母显示十六进制中的A-F
+                sign = 0;   //标记这是个无符号数
+                zero = '0'; //前边0填充
+                width = 2 * sizeof(void *);
+                break;
+            
             case 's': //一般用于显示字符串
                 p = va_arg(args, u_char *); //va_arg():遍历可变参数，var_arg的第二个参数表示遍历的这个可变的参数的类型
 

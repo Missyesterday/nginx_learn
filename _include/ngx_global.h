@@ -4,6 +4,8 @@
 
 #include <signal.h>
 
+#include "ngx_c_socket.h"
+
 //一些比较通用的定义放在这里
 
 
@@ -29,6 +31,7 @@ extern int           g_os_argc;
 extern char          **g_os_argv;
 extern char          *gp_envmem; 
 extern int           g_daemonized;
+extern CSocekt       g_socket; 
 
 extern pid_t         ngx_pid;
 extern pid_t         ngx_parent;
