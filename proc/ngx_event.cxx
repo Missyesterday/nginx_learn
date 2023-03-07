@@ -1,8 +1,4 @@
 ﻿//和开启子进程相关
-/*
-王健伟老师 《Linux C++通讯架构实战》
-商业级质量的代码，完整的项目，帮你提薪至少10K
-*/
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
