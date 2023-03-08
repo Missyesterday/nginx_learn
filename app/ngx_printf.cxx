@@ -151,6 +151,23 @@ u_char *ngx_vslprintf(u_char *buf, u_char *last,const char *fmt,va_list args)
                     ui64 = (uint64_t) va_arg(args, u_int);    
                 }
                 break;  //这break掉，直接跳道switch后边的代码去执行,这种凡是break的，都不做fmt++;  *********************【switch后仍旧需要进一步处理】
+            
+            case 'i':
+                if (sign) 
+                {
+                    i64 = (int64_t) va_arg(args, intptr_t);
+                } 
+                else 
+                {
+                    ui64 = (uint64_t) va_arg(args, uintptr_t);
+                }
+
+                //if (max_width) 
+                //{
+                //    width = NGX_INT_T_LEN;
+                //}
+
+                break;   
             case 'p':  
                 ui64 = (uintptr_t) va_arg(args, void *); 
                 hex = 2;    //标记以大写字母显示十六进制中的A-F

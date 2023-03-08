@@ -92,7 +92,7 @@ void ngx_log_stderr(int err, const char *fmt, ...)
     *p++ = '\n'; //增加个换行符    
 
     //往标准错误【一般是屏幕】输出信息    
-    // write(STDERR_FILENO,errstr,p - errstr); 
+    write(STDERR_FILENO,errstr,p - errstr); 
 
     //测试代码：
     //printf("ngx_log_stderr()处理结果=%s\n",errstr);

@@ -170,7 +170,7 @@ static void ngx_process_get_status(void)
     //当你杀死一个子进程时，父进程会收到这个SIGCHLD信号。
     for ( ;; ) 
     {
-        //waitpid，有人也用wait,但老师要求大家掌握和使用waitpid即可；这个waitpid说白了获取子进程的终止状态，这样，子进程就不会成为僵尸进程了；
+        //waitpid，有人也用wait,但使用waitpid即可；这个waitpid说白了获取子进程的终止状态，这样，子进程就不会成为僵尸进程了；
         //第一次waitpid返回一个> 0值，表示成功，后边显示 20xx/01/14 12:12:12 [alert] 3375: pid = 3377 exited on signal 9【SIGKILL】
         //第二次再循环回来，再次调用waitpid会返回一个0，表示子进程还没结束，然后这里有return来退出；
         pid = waitpid(-1, &status, WNOHANG); //第一个参数为-1，表示等待任何子进程，

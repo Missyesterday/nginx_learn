@@ -19,6 +19,7 @@
 #include "ngx_global.h"
 #include "ngx_func.h"
 #include "ngx_c_socket.h"
+#include "ngx_c_memory.h"
 
 //从连接池中获取一个空闲连接【当一个客户端连接TCP进入，我希望把这个连接和我的 连接池中的 一个连接【对象】绑到一起，后续 我可以通过这个连接，把这个对象拿到，因为对象里边可以记录各种信息】
 lpngx_connection_t CSocekt::ngx_get_connection(int isock)
@@ -36,14 +37,22 @@ lpngx_connection_t CSocekt::ngx_get_connection(int isock)
     m_free_connection_n--;                               //空闲连接少1
     
     //(1)注意这里的操作,先把c指向的对象中有用的东西搞出来保存成变量，因为这些数据可能有用
-    uintptr_t  instance = c->instance;   //常规c->instance在刚构造连接池时这里是1【失效】
-    uint64_t iCurrsequence = c->iCurrsequence;
+    uintptr_t  instance = c->instance;            //常规c->instance在刚构造连接池时这里是1【失效】
+    uint64_t   iCurrsequence = c->iCurrsequence;  //序号也暂存，后续用于恢复
     //....其他内容再增加
 
 
     //(2)把以往有用的数据搞出来后，清空并给适当值
     memset(c,0,sizeof(ngx_connection_t));                //注意，类型不要用成lpngx_connection_t，否则就出错了
-    c->fd = isock;                                       //套接字要保存起来，这东西具有唯一性    
+
+    c->fd      = isock;                                  //套接字要保存起来，这东西具有唯一性    
+    c->curStat = _PKG_HD_INIT;                           //收包状态处于 初始状态，准备接收数据包头【状态机】
+
+    c->precvbuf = c->dataHeadInfo;                       //收包我要先收到这里来，因为我要先收包头，所以收数据的buff直接就是dataHeadInfo
+    c->irecvlen = sizeof(COMM_PKG_HEADER);               //这里指定收数据的长度，这里先要求收包头这么长字节的数据
+
+    c->ifnewrecvMem = false;                             //标记我们并没有new内存，所以不用释放	 
+    c->pnewMemPointer = NULL;                            //既然没new内存，那自然指向的内存地址先给NULL 
     //....其他内容再增加
 
     //(3)这个值有用，所以在上边(1)中被保留，没有被清空，这里又把这个值赋回来
@@ -57,6 +66,13 @@ lpngx_connection_t CSocekt::ngx_get_connection(int isock)
 //归还参数c所代表的连接到到连接池中，注意参数类型是lpngx_connection_t
 void CSocekt::ngx_free_connection(lpngx_connection_t c) 
 {
+    if(c->ifnewrecvMem == true)
+    {
+        //我们曾经给这个连接分配过内存，则要释放内存        
+        CMemory::GetInstance()->FreeMemory(c->pnewMemPointer);
+        c->pnewMemPointer = NULL;
+        c->ifnewrecvMem = false;  //这行有用？
+    }
     c->data = m_pfree_connections;                       //回收的节点指向原来串起来的空闲链的链头
 
     //节点本身也要干一些事
@@ -67,3 +83,16 @@ void CSocekt::ngx_free_connection(lpngx_connection_t c)
     return;
 }
 
+
+//用户连入，我们accept4()时，得到的socket在处理中产生失败，则资源用这个函数释放【因为这里涉及到好几个要释放的资源，所以写成函数】
+//我们把ngx_close_accepted_connection()函数改名为让名字更通用，并从文件ngx_socket_accept.cxx迁移到本文件中，并改造其中代码，注意顺序
+void CSocekt::ngx_close_connection(lpngx_connection_t c)
+{
+    if(close(c->fd) == -1)
+    {
+        ngx_log_error_core(NGX_LOG_ALERT,errno,"CSocekt::ngx_close_connection()中close(%d)失败!",c->fd);  
+    }
+    c->fd = -1; //官方nginx这么写，这么写有意义；    
+    ngx_free_connection(c); //把释放代码放在最后边，感觉更合适
+    return;
+}

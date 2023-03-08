@@ -129,7 +129,7 @@ void CSocekt::ngx_event_accept(lpngx_connection_t oldc)
             if(setnonblocking(s) == false)
             {
                 //设置非阻塞居然失败
-                ngx_close_accepted_connection(newc);
+                ngx_close_connection(newc);
                 return; //直接返回
             }
         }
@@ -140,13 +140,13 @@ void CSocekt::ngx_event_accept(lpngx_connection_t oldc)
         //客户端应该主动发送第一次的数据，这里将读事件加入epoll监控
         if(ngx_epoll_add_event(s,                 //socket句柄
                                 1,0,              //读，写
-                                EPOLLET,          //其他补充标记【EPOLLET(高速模式，边缘触发ET)】
+                                0,//EPOLLET          //其他补充标记【EPOLLET(高速模式，边缘触发ET)】
                                 EPOLL_CTL_ADD,    //事件类型【增加，还有删除/修改】                                    
                                 newc              //连接池中的连接
                                 ) == -1)
         {
             //增加事件失败，失败日志在ngx_epoll_add_event中写过了，因此这里不多写啥；
-            ngx_close_accepted_connection(newc);
+            ngx_close_connection(newc);
             return; //直接返回
         } 
 
@@ -157,7 +157,8 @@ void CSocekt::ngx_event_accept(lpngx_connection_t oldc)
 }
 
 //用户连入，我们accept4()时，得到的socket在处理中产生失败，则资源用这个函数释放【因为这里涉及到好几个要释放的资源，所以写成函数】
-void CSocekt::ngx_close_accepted_connection(lpngx_connection_t c)
+
+/* void CSocekt::ngx_close_accepted_connection(lpngx_connection_t c)
 {
     int fd = c->fd;
     ngx_free_connection(c);
@@ -168,3 +169,4 @@ void CSocekt::ngx_close_accepted_connection(lpngx_connection_t c)
     }
     return;
 }
+ */

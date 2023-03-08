@@ -13,12 +13,15 @@
 //#include <sys/socket.h>
 #include <sys/ioctl.h> //ioctl
 #include <arpa/inet.h>
+#include <pthread.h>
 
 #include "ngx_c_conf.h"
 #include "ngx_macro.h"
 #include "ngx_global.h"
 #include "ngx_func.h"
 #include "ngx_c_socket.h"
+#include "ngx_c_memory.h"
+
 //构造函数
 CSocekt::CSocekt()
 {
@@ -32,6 +35,16 @@ CSocekt::CSocekt()
     m_pfree_connections = NULL;  //连接池中空闲的连接链 
     //m_pread_events = NULL;       //读事件数组给空
     //m_pwrite_events = NULL;      //写事件数组给空
+
+        //一些和网络通讯有关的常用变量值，供后续频繁使用时提高效率
+    m_iLenPkgHeader = sizeof(COMM_PKG_HEADER);    //包头的sizeof值【占用的字节数】
+    m_iLenMsgHeader =  sizeof(STRUC_MSG_HEADER);  //消息头的sizeof值【占用的字节数】
+
+    m_iRecvMsgQueueCount = 0;    //收消息队列
+
+    //多线程相关
+    pthread_mutex_init(&m_recvMessageQueueMutex, NULL); //互斥量初始化
+
     return;	
 }
 
@@ -54,8 +67,31 @@ CSocekt::~CSocekt()
 	m_ListenSocketList.clear(); 
     if(m_pconnections != NULL)//释放连接池
         delete [] m_pconnections;
+
+    //(3)接收消息队列中内容释放
+    clearMsgRecvQueue();
+
+    
+    //(4)多线程相关
+    pthread_mutex_destroy(&m_recvMessageQueueMutex);    //互斥量释放
     
     return;
+}
+
+//各种清理函数-------------------------
+//清理接收消息队列，注意这个函数的写法。
+void CSocekt::clearMsgRecvQueue()
+{
+	char * sTmpMempoint;
+	CMemory *p_memory = CMemory::GetInstance();
+
+	//临界与否，日后再考虑，当前先不考虑。。。。。。如果将来有线程池再考虑临界问题
+	while(!m_MsgRecvQueue.empty())
+	{
+		sTmpMempoint = m_MsgRecvQueue.front();		
+		m_MsgRecvQueue.pop_front(); 
+		p_memory->FreeMemory(sTmpMempoint);
+	}	
 }
 
 //初始化函数【fork()子进程之前干这个事】
@@ -354,7 +390,7 @@ int CSocekt::ngx_epoll_add_event(int fd,
 
     if(epoll_ctl(m_epollhandle, eventtype, fd, &ev) == -1)
     {
-        ngx_log_stderr(errno,"CSocekt::ngx_epoll_add_event()中epoll_ctl(%d,%d,%d,%u,%u)失败.",fd,readevent,writeevent,otherflag,eventtype);
+        ngx_log_stderr(errno,"CSocekt::ngx_epoll_add_event()中epoll_ctl(%d,%d,%d,%ud,%ud)失败.",fd,readevent,writeevent,otherflag,eventtype);
         //exit(2); //这是致命问题了，直接退，资源由系统释放吧，这里不刻意释放了，比较麻烦，后来发现不能直接退；
         return -1;
     }
@@ -373,6 +409,7 @@ int CSocekt::ngx_epoll_process_events(int timer)
     //返回值：有错误发生返回-1，错误在errno中，比如你发个信号过来，就返回-1，错误信息是(4: Interrupted system call)
     //       如果你等待的是一段时间，并且超时了，则返回0；
     //       如果返回>0则表示成功捕获到这么多个事件【返回值里】
+    //从双向链表中取出的epoll_event类型数组就存放在m_events
     int events = epoll_wait(m_epollhandle, m_events, NGX_MAX_EVENTS, timer);
     
     if(events == -1)
@@ -478,9 +515,10 @@ int CSocekt::ngx_epoll_process_events(int timer)
                                               //如果是已经连入，发送数据到这里，则这里执行的应该是 CSocekt::ngx_wait_request_handler
         }
         
-        if(revents & EPOLLOUT) //如果是写事件
+        if(revents & EPOLLOUT) //如果是写事件【对方关闭连接也触发这个，再研究。。。。。。】，注意上边的 if(revents & (EPOLLERR|EPOLLHUP))  revents |= EPOLLIN|EPOLLOUT; 读写标记都给加上了v
         {
-            //....待扩展
+            //....待扩展， 客户端关闭时，关闭的时候能够执行到这里，因为上边有if(revents & (EPOLLERR|EPOLLHUP))  revents |= EPOLLIN|EPOLLOUT; 代码
+            
 
             ngx_log_stderr(errno,"111111111111111111111111111111.");
 

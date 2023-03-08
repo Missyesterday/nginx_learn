@@ -2,14 +2,13 @@
 #.PHONY:all clean 
 
 #如果 DEBUG参数为true, 则执行到 else, DEBUG参数实际上在config.mk中定义
+
 ifeq ($(DEBUG),true)
-#-g是生成调试信息。GDB可以利用该信息
-# 定义CC变量为g++ -g
-CC = g++ -g
+#-g是生成调试信息。GNU调试器可以利用该信息
+CC = g++ -std=c++11 -g 
 VERSION = debug
 else
-# 否则CC为gcc 或者g++
-CC = g++
+CC = g++ -std=c++11
 VERSION = release
 endif
 
@@ -73,7 +72,7 @@ $(BIN):$(LINK_OBJ)
 
 #一些变量：$@：目标(冒号左边的)，     $^：所有目标依赖(冒号右边的)
 # gcc -o 是生成可执行文件
-	$(CC) -o $@ $^
+	$(CC) -o $@ $^ -lpthread
 
 #----------------------------------------------------------------1end-------------------
 
@@ -103,7 +102,8 @@ $(DEP_DIR)/%.d:%.cxx
 	echo -n $(LINK_OBJ_DIR)/ > $@
 #	gcc -MM $^ | sed 's/^/$(LINK_OBJ_DIR)&/g' > $@
 #  >>表示追加
-	gcc -I$(INCLUDE_PATH) -MM $^ >> $@
+#	gcc -I$(INCLUDE_PATH) -MM $^ >> $@
+	$(CC) -I$(INCLUDE_PATH) -MM $^ >> $@
 # $^代表所有的文件
 
 #上行处理后，/app/dep/*.d文件中内容应该就如：/项目的根目录/app/link_obj/nginx.o: nginx.c ngx_func.h ../signal/ngx_signal.h

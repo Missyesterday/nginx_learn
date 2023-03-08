@@ -1,5 +1,5 @@
 ﻿
-//和网络 中 获取一些ip地址等信息 有关的函数放这里
+//从网络 中 获取一些ip地址等信息 有关的函数放这里
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

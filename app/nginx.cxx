@@ -6,11 +6,16 @@
 #include <unistd.h>
 #include <string.h>
 #include <signal.h> 
+#include <errno.h>
+#include <arpa/inet.h>
 
 #include "ngx_macro.h"   //各种宏定义
 #include "ngx_func.h"    //各种函数声明
 #include "ngx_c_conf.h"  //和配置文件处理相关的类,名字带c_表示和类有关
 #include "ngx_c_socket.h"
+#include "ngx_comm.h"
+#include "ngx_c_memory.h"
+#include "ngx_c_threadpool.h"
 
 
 //本文件用的函数声明
@@ -26,6 +31,8 @@ int     g_daemonized=0;         //守护进程标记，标记是否启用了守�
 
 //socket相关
 CSocekt g_socket;               //socket全局对象
+
+CThreadPool  g_threadpool;      //线程池全局对象
 //和进程本身有关的全局量
 pid_t   ngx_pid;                //当前进程的pid
 pid_t   ngx_parent;             //父进程的pid
@@ -36,8 +43,21 @@ sig_atomic_t  ngx_reap;         //标记子进程状态变化[一般是子进程
 
 int main(int argc, char *const *argv)
 {             
+    //time_t mytime = time(NULL);
+    //printf("time = %u",mytime);
+    //exit(0);
+    //#ifdef _POSIX_THREADS 
+    //    printf("henhao");
+    //#endif    
+    //exit(0);
+    //printf("unsigned long sizeof=%d",sizeof(unsigned long));
+    //printf("htonl(100)=%d",htonl(100));
+    //printf("ntohl(htonl(100)=%d",ntohl(htonl(100)));
+    //exit(0);
     int exitcode = 0;
     int i;
+
+    // CMemory *p_memory;
 
     //1. 不需要释放的最先调用
     //取得进程pid
@@ -78,6 +98,9 @@ int main(int argc, char *const *argv)
         exitcode = 2;
         goto lblexit;
     }
+
+    //(2.1)内存单例类可以在这里初始化，返回值不用保存
+    CMemory::GetInstance();	
 
     // -------------------------------------------------------
     //3. 一些初始化函数
