@@ -30,6 +30,7 @@ CThreadPool::~CThreadPool()
 
 //创建线程池中的线程，要手工调用，不在构造函数里调用了
 //返回值：所有线程都创建成功则返回true，出现错误则返回false
+//threadNum参数代表线程数量,最好不要大于300,这里作为一个配置项, 在配置文件中配置
 bool CThreadPool::Create(int threadNum)
 {    
     ThreadItem *pNew;
@@ -39,6 +40,7 @@ bool CThreadPool::Create(int threadNum)
     
     for(int i = 0; i < m_iThreadNum; ++i)
     {
+        //可以通过线程找到管理这个线程的对象(传入this)
         m_threadVector.push_back(pNew = new ThreadItem(this));             //创建 一个新线程对象 并入到容器中         
         err = pthread_create(&pNew->_Handle, NULL, ThreadFunc, pNew);      //创建线程，错误不返回到errno，一般返回错误码
         if(err != 0)
@@ -69,11 +71,14 @@ lblfor:
     return true;
 }
 
-//线程入口函数，当用pthread_create()创建线程后，这个ThreadFunc()函数都会被立即执行；
+//线程入口函数，当用pthread_create()创建线程后，这个ThreadFunc()函数都会被立即执行!
+//这是一个静态函数,不存在this指针， 因为pthread_craete()只能传入一个参数
+//传入的信息就是一个threadItem
 void* CThreadPool::ThreadFunc(void* threadData)
 {
     //这个是静态成员函数，是不存在this指针的；
     ThreadItem *pThread = static_cast<ThreadItem*>(threadData);
+    //线程item有一个线程池的指针_pThis!!
     CThreadPool *pThreadPoolObj = pThread->_pThis;
 
     char *jobbuf = NULL;    
@@ -81,9 +86,12 @@ void* CThreadPool::ThreadFunc(void* threadData)
     int err;
 
     pthread_t tid = pthread_self(); //获取线程自身id，以方便调试打印信息等    
+    
+    //核心代码!
     while(true)
     {
         //线程用pthread_mutex_lock()函数去锁定指定的mutex变量，若该mutex已经被另外一个线程锁定了，该调用将会阻塞线程直到mutex被解锁。  
+        //m_pthreadMutex是一个静态成员, 所以可以使用
         err = pthread_mutex_lock(&m_pthreadMutex);  
         if(err != 0) ngx_log_stderr(err,"CThreadPool::ThreadFunc()pthread_mutex_lock()失败，返回的错误码为%d!",err);//有问题，要及时报告
         
@@ -95,12 +103,14 @@ void* CThreadPool::ThreadFunc(void* threadData)
         while( (jobbuf = g_socket.outMsgRecvQueue()) == NULL && m_shutdown == false)
         {
             //如果这个pthread_cond_wait被唤醒【被唤醒后程序执行流程往下走的前提是拿到了锁--官方：pthread_cond_wait()返回时，互斥量再次被锁住】，
-              //那么会立即再次执行g_socket.outMsgRecvQueue()，如果拿到了一个NULL，则继续在这里wait着();
+            //那么会立即再次执行g_socket.outMsgRecvQueue()，如果拿到了一个NULL，则继续在这里wait着();
             if(pThread->ifrunning == false)            
                 pThread->ifrunning = true; //标记为true了才允许调用StopAll()：测试中发现如果Create()和StopAll()紧挨着调用，就会导致线程混乱，所以每个线程必须执行到这里，才认为是启动成功了；
             
             //ngx_log_stderr(0,"执行了pthread_cond_wait-------------begin");
             //刚开始执行pthread_cond_wait()的时候，会卡在这里，而且m_pthreadMutex会被释放掉；
+            //第一个线程释放,第二个线程就可以向后走
+            //如果有100个线程, 那个100个线程都会卡在这里等待任务
             pthread_cond_wait(&m_pthreadCond, &m_pthreadMutex); //整个服务器程序刚初始化的时候，所有线程必然是卡在这里等待的；
             //ngx_log_stderr(0,"执行了pthread_cond_wait-------------end");
         }
@@ -152,9 +162,9 @@ void* CThreadPool::ThreadFunc(void* threadData)
 
 //        g_socket.threadRecvProcFunc(jobbuf);     //处理消息队列中来的消息
 
-ngx_log_stderr(0,"执行开始---begin,tid=%ui!",tid);
-sleep(5); //临时测试代码
-ngx_log_stderr(0,"执行结束---end,tid=%ui!",tid);
+        ngx_log_stderr(0,"执行开始---begin,tid=%ui!",tid);
+        sleep(5); //临时测试代码
+        ngx_log_stderr(0,"执行结束---end,tid=%ui!",tid);
 
         p_memory->FreeMemory(jobbuf);              //释放消息内存 
         --pThreadPoolObj->m_iRunningThreadNum;     //原子-1
@@ -166,6 +176,7 @@ ngx_log_stderr(0,"执行结束---end,tid=%ui!",tid);
 }
 
 //停止所有线程【等待结束线程池中所有线程，该函数返回后，应该是所有线程池中线程都结束了】
+//一般来说不会执行到这里, 但是可以优雅退出!
 void CThreadPool::StopAll() 
 {
     //(1)已经调用过，就不要重复调用了

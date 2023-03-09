@@ -5,7 +5,7 @@
 #include <pthread.h> 
 
 //本类用于自动释放互斥量，防止忘记调用pthread_mutex_unlock的情况发生
-//本类其实在《c++从入门到精通c++98/11/14/17中也详细讲过》
+//构造函数加锁， 析构函数解锁
 class CLock
 {
 public:
