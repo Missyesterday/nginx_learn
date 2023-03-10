@@ -21,7 +21,7 @@
 #include "ngx_c_socket.h"
 
 //建立新连接专用函数，当新连接进入时，本函数会被ngx_epoll_process_events()所调用
-void CSocekt::ngx_event_accept(lpngx_connection_t oldc)
+void CSocket::ngx_event_accept(lpngx_connection_t oldc)
 {
     //因为listen套接字上用的不是ET【边缘触发】，而是LT【水平触发】，意味着客户端连入如果我要不处理，这个函数会被多次调用，所以，我这里这里可以不必多次accept()，可以只执行一次accept()
          //这也可以避免本函数被卡太久，注意，本函数应该尽快返回，以免阻塞程序运行；
@@ -78,7 +78,7 @@ void CSocekt::ngx_event_accept(lpngx_connection_t oldc)
             {
                 level = NGX_LOG_CRIT;
             }
-            ngx_log_error_core(level,errno,"CSocekt::ngx_event_accept()中accept4()失败!");
+            ngx_log_error_core(level,errno,"CSocket::ngx_event_accept()中accept4()失败!");
 
             if(use_accept4 && err == ENOSYS) //accept4()函数没实现
             {
@@ -108,7 +108,7 @@ void CSocekt::ngx_event_accept(lpngx_connection_t oldc)
             //连接池中连接不够用，那么就得把这个socekt直接关闭并返回了，因为在ngx_get_connection()中已经写日志了，所以这里不需要写日志了
             if(close(s) == -1)
             {
-                ngx_log_error_core(NGX_LOG_ALERT,errno,"CSocekt::ngx_event_accept()中close(%d)失败!",s);                
+                ngx_log_error_core(NGX_LOG_ALERT,errno,"CSocket::ngx_event_accept()中close(%d)失败!",s);                
             }
             return;
         }
@@ -136,7 +136,7 @@ void CSocekt::ngx_event_accept(lpngx_connection_t oldc)
 
         newc->listening = oldc->listening;                    //连接对象 和监听对象关联，方便通过连接对象找监听对象【关联到监听端口】
         newc->w_ready = 1;                                    //标记可以写，新连接写事件肯定是ready的；【从连接池拿出一个连接时这个连接的所有成员都是0】            
-        newc->rhandler = &CSocekt::ngx_wait_request_handler;  //设置数据来时的读处理函数，其实官方nginx中是ngx_http_wait_request_handler()
+        newc->rhandler = &CSocket::ngx_wait_request_handler;  //设置数据来时的读处理函数，其实官方nginx中是ngx_http_wait_request_handler()
         //客户端应该主动发送第一次的数据，这里将读事件加入epoll监控
         if(ngx_epoll_add_event(s,                 //socket句柄
                                 1,0,              //读，写
@@ -158,14 +158,14 @@ void CSocekt::ngx_event_accept(lpngx_connection_t oldc)
 
 //用户连入，我们accept4()时，得到的socket在处理中产生失败，则资源用这个函数释放【因为这里涉及到好几个要释放的资源，所以写成函数】
 
-/* void CSocekt::ngx_close_accepted_connection(lpngx_connection_t c)
+/* void CSocket::ngx_close_accepted_connection(lpngx_connection_t c)
 {
     int fd = c->fd;
     ngx_free_connection(c);
     c->fd = -1; //官方nginx这么写，但这是有意义的
     if(close(fd) == -1)
     {
-        ngx_log_error_core(NGX_LOG_ALERT,errno,"CSocekt::ngx_close_accepted_connection()中close(%d)失败!",fd);  
+        ngx_log_error_core(NGX_LOG_ALERT,errno,"CSocket::ngx_close_accepted_connection()中close(%d)失败!",fd);  
     }
     return;
 }

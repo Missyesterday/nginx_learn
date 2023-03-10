@@ -14,9 +14,9 @@
 
 typedef struct ngx_listening_s   ngx_listening_t, *lpngx_listening_t;
 typedef struct ngx_connection_s  ngx_connection_t,*lpngx_connection_t;
-typedef class  CSocekt           CSocekt;
+typedef class  CSocket           CSocket;
 
-typedef void (CSocekt::*ngx_event_handler_pt)(lpngx_connection_t c); //定义成员函数指针
+typedef void (CSocket::*ngx_event_handler_pt)(lpngx_connection_t c); //定义成员函数指针
 
 //一些专用结构定义放在这里，暂时不考虑放ngx_global.h里了-------------------------
 typedef struct ngx_listening_s  //和监听端口有关的结构
@@ -69,15 +69,16 @@ typedef struct _STRUC_MSG_HEADER
 
 //------------------------------------
 //socket相关类
-class CSocekt
+class CSocket
 {
 public:
-	CSocekt();                                                         //构造函数
-	virtual ~CSocekt();                                                //释放函数
+	CSocket();                                                         //构造函数
+	virtual ~CSocket();                                                //释放函数
 public:    
     virtual bool Initialize();                                         //初始化函数
     public:
 	char *outMsgRecvQueue();                                           //将一个消息出消息队列	
+    //char *outMsgRecvQueue();                                           //将一个消息出消息队列
 	virtual void threadRecvProcFunc(char *pMsgBuf);                    //处理客户端请求，虚函数，因为将来可以考虑自己来写子类继承本类
 
 
@@ -105,10 +106,9 @@ private:
 	ssize_t recvproc(lpngx_connection_t c,char *buff,ssize_t buflen);  //接收从客户端来的数据专用函数
 	void ngx_wait_request_handler_proc_p1(lpngx_connection_t c);       //包头收完整后的处理，我们称为包处理阶段1：写成函数，方便复用	                                                                   
 	void ngx_wait_request_handler_proc_plast(lpngx_connection_t c);    //收到一个完整包后的处理，放到一个函数中，方便调用
-	void inMsgRecvQueue(char *buf,int &irmqc);                         //收到一个完整消息后，入消息队列	
-	//void tmpoutMsgRecvQueue(); //临时清除对列中消息函数，测试用，将来会删除该函数
-	// void tmpoutMsgRecvQueue(); //临时清除对列中消息函数，测试用，将来会删除该函数
-	void clearMsgRecvQueue();                                          //清理接收消息队列
+	// void inMsgRecvQueue(char *buf,int &irmqc);                         //收到一个完整消息后，入消息队列	
+	// // void tmpoutMsgRecvQueue(); //临时清除对列中消息函数，测试用，将来会删除该函数
+	// void clearMsgRecvQueue();                                          //清理接收消息队列
 
 	//获取对端信息相关                                              
 	size_t ngx_sock_ntop(struct sockaddr *sa,int port,u_char *text,size_t len);  //根据参数1给定的信息，获取地址端口字符串，返回这个字符串的长度
@@ -117,6 +117,11 @@ private:
 	lpngx_connection_t ngx_get_connection(int isock);                  //从连接池中获取一个空闲连接
 	void ngx_free_connection(lpngx_connection_t c);                    //归还参数c所代表的连接到到连接池中	
 
+protected:
+	//一些和网络通讯有关的成员变量
+	size_t                         m_iLenPkgHeader;                    //sizeof(COMM_PKG_HEADER);		
+	size_t                         m_iLenMsgHeader;                    //sizeof(STRUC_MSG_HEADER);
+	
 private:
 	int                            m_worker_connections;               //epoll连接的最大项数
 	int                            m_ListenPortCount;                  //所监听的端口数量
@@ -138,7 +143,7 @@ private:
 
     
 	//一些和网络通讯有关的成员变量
-	size_t                         m_iLenPkgHeader;                    //sizeof(COMM_PKG_HEADER);		
+/* 	size_t                         m_iLenPkgHeader;                    //sizeof(COMM_PKG_HEADER);		
 	size_t                         m_iLenMsgHeader;                    //sizeof(STRUC_MSG_HEADER);
 	//消息队列
 	std::list<char *>              m_MsgRecvQueue;                     //接收数据消息队列 
@@ -146,7 +151,7 @@ private:
     int                            m_iRecvMsgQueueCount;               //收消息队列大小
 
 	//多线程相关
-	pthread_mutex_t                m_recvMessageQueueMutex;            //收消息队列互斥量 
+	pthread_mutex_t                m_recvMessageQueueMutex;            //收消息队列互斥量  */
 };
 
 #endif

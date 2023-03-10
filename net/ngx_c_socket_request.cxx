@@ -24,7 +24,7 @@
 #include "ngx_c_lockmutex.h"
 
 //来数据时候的处理，当连接上有数据来的时候，本函数会被ngx_epoll_process_events()所调用  ,官方的类似函数为ngx_http_wait_request_handler();
-void CSocekt::ngx_wait_request_handler(lpngx_connection_t c)
+void CSocket::ngx_wait_request_handler(lpngx_connection_t c)
 {  
     // ngx_log_stderr(errno,"22222222222222222222222.");
     //测试代码, 用来测试ET模式
@@ -135,7 +135,7 @@ void CSocekt::ngx_wait_request_handler(lpngx_connection_t c)
 //参数buflen：要接收的数据大小
 //返回值：返回-1，则是有问题发生并且在这里把问题处理完毕了，调用本函数的调用者一般是可以直接return
 //        返回>0，则是表示实际收到的字节数
-ssize_t CSocekt::recvproc(lpngx_connection_t c,char *buff,ssize_t buflen)  //ssize_t是有符号整型，在32位机器上等同与int，在64位机器上等同与long int，size_t就是无符号型的ssize_t
+ssize_t CSocket::recvproc(lpngx_connection_t c,char *buff,ssize_t buflen)  //ssize_t是有符号整型，在32位机器上等同与int，在64位机器上等同与long int，size_t就是无符号型的ssize_t
 {
     ssize_t n;
     
@@ -155,7 +155,7 @@ ssize_t CSocekt::recvproc(lpngx_connection_t c,char *buff,ssize_t buflen)  //ssi
         {
             //我认为LT模式不该出现这个errno，而且这个其实也不是错误，所以不当做错误处理
             //ET模式下循环收数据, 才会出现这个errno
-            ngx_log_stderr(errno,"CSocekt::recvproc()中errno == EAGAIN || errno == EWOULDBLOCK成立，出乎我意料！");//epoll为LT模式不应该出现这个返回值，所以直接打印出来瞧瞧
+            ngx_log_stderr(errno,"CSocket::recvproc()中errno == EAGAIN || errno == EWOULDBLOCK成立，出乎我意料！");//epoll为LT模式不应该出现这个返回值，所以直接打印出来瞧瞧
             return -1; //不当做错误处理，只是简单返回
         }
         //EINTR错误的产生：当阻塞于某个慢系统调用的一个进程捕获某个信号且相应信号处理函数返回时，该系统调用可能返回一个EINTR错误。
@@ -163,7 +163,7 @@ ssize_t CSocekt::recvproc(lpngx_connection_t c,char *buff,ssize_t buflen)  //ssi
         if(errno == EINTR)  //这个不算错误，是我参考官方nginx，官方nginx这个就不算错误；
         {
             //我认为LT模式不该出现这个errno，而且这个其实也不是错误，所以不当做错误处理
-            ngx_log_stderr(errno,"CSocekt::recvproc()中errno == EINTR成立，出乎我意料！");//epoll为LT模式不应该出现这个返回值，所以直接打印出来瞧瞧
+            ngx_log_stderr(errno,"CSocket::recvproc()中errno == EINTR成立，出乎我意料！");//epoll为LT模式不应该出现这个返回值，所以直接打印出来瞧瞧
             return -1; //不当做错误处理，只是简单返回
         }
 
@@ -182,7 +182,7 @@ ssize_t CSocekt::recvproc(lpngx_connection_t c,char *buff,ssize_t buflen)  //ssi
         else
         {
             //能走到这里的，都表示错误，我打印一下日志，希望知道一下是啥错误，我准备打印到屏幕上
-            ngx_log_stderr(errno,"CSocekt::recvproc()中发生错误，我打印出来看看是啥错误！");  //正式运营时可以考虑这些日志打印去掉
+            ngx_log_stderr(errno,"CSocket::recvproc()中发生错误，我打印出来看看是啥错误！");  //正式运营时可以考虑这些日志打印去掉
         } 
         
         //ngx_log_stderr(0,"连接被客户端 非 正常关闭！");
@@ -198,7 +198,7 @@ ssize_t CSocekt::recvproc(lpngx_connection_t c,char *buff,ssize_t buflen)  //ssi
 
 
 //包头收完整后的处理，我们称为包处理阶段1【p1】：写成函数，方便复用
-void CSocekt::ngx_wait_request_handler_proc_p1(lpngx_connection_t c)
+void CSocket::ngx_wait_request_handler_proc_p1(lpngx_connection_t c)
 {
     CMemory *p_memory = CMemory::GetInstance();		
 
@@ -269,15 +269,16 @@ void CSocekt::ngx_wait_request_handler_proc_p1(lpngx_connection_t c)
 
 //收到一个完整包后的处理【plast表示最后阶段】，放到一个函数中，方便调用
 //收到一个完整包后的处理【plast表示最后阶段】，放到一个函数中，方便调用
-void CSocekt::ngx_wait_request_handler_proc_plast(lpngx_connection_t c)
+void CSocket::ngx_wait_request_handler_proc_plast(lpngx_connection_t c)
 {
     //把这段内存放到消息队列中来；
-    int irmqc = 0;  //消息队列当前信息数量
+/*     int irmqc = 0;  //消息队列当前信息数量
     inMsgRecvQueue(c->pnewMemPointer,irmqc); //返回消息队列当前信息数量irmqc，是调用本函数后的消息队列中消息数量
 
     //激发线程池中的某个线程来处理业务逻辑
-    g_threadpool.Call(irmqc);
+    g_threadpool.Call(irmqc); */
     
+    g_threadpool.inMsgRecvQueueAndSignal(c->pnewMemPointer); //入消息队列并触发线程处理消息
     c->ifnewrecvMem    = false;            //内存不再需要释放，因为你收完整了包，这个包被上边调用inMsgRecvQueue()移入消息队列，那么释放内存就属于业务逻辑去干，不需要回收连接到连接池中干了
     c->pnewMemPointer  = NULL;
     c->curStat         = _PKG_HD_INIT;     //收包状态机的状态恢复为原始态，为收下一个包做准备                    
@@ -286,10 +287,10 @@ void CSocekt::ngx_wait_request_handler_proc_plast(lpngx_connection_t c)
     return;
 }
 
-//---------------------------------------------------------------
+/* //---------------------------------------------------------------
 //当收到一个完整包之后，将完整包入消息队列，这个包在服务器端应该是 消息头+包头+包体 格式
 //参数：返回 接收消息队列当前信息数量irmqc，因为临界着，所以这个值也是OK的；
-void CSocekt::inMsgRecvQueue(char *buf,int &irmqc) //buf这段内存 ： 消息头 + 包头 + 包体
+void CSocket::inMsgRecvQueue(char *buf,int &irmqc) //buf这段内存 ： 消息头 + 包头 + 包体
 {
     CLock lock(&m_recvMessageQueueMutex);	 //自动加锁解锁很方便，不需要手工去解锁了
     m_MsgRecvQueue.push_back(buf);	         //入消息队列
@@ -306,10 +307,10 @@ void CSocekt::inMsgRecvQueue(char *buf,int &irmqc) //buf这段内存 ： 消息�
     //为了测试方便，因为本函数意味着收到了一个完整的数据包，所以这里打印一个信息
     //ngx_log_stderr(0,"非常好，收到了一个完整的数据包【包头+包体】！");  
     
-}
+} */
 
 //从消息队列中把一个包提取出来以备后续处理
-char *CSocekt::outMsgRecvQueue() 
+/* char *CSocket::outMsgRecvQueue() 
 {
     CLock lock(&m_recvMessageQueueMutex);	//互斥
     if(m_MsgRecvQueue.empty())
@@ -320,10 +321,10 @@ char *CSocekt::outMsgRecvQueue()
     m_MsgRecvQueue.pop_front();                //移除第一个元素但不返回	
     --m_iRecvMsgQueueCount;                    //收消息队列数字-1
     return sTmpMsgBuf;                         
-}
+} */
 
 //临时函数，用于将Msg中消息干掉
-/*void CSocekt::tmpoutMsgRecvQueue()
+/*void CSocket::tmpoutMsgRecvQueue()
 {
     //日后可能引入outMsgRecvQueue()，这个函数可能需要临界......
     if(m_MsgRecvQueue.empty())  //没有消息直接退出
@@ -352,7 +353,7 @@ char *CSocekt::outMsgRecvQueue()
 //消息处理线程主函数，专门处理各种接收到的TCP消息
 //pMsgBuf：发送过来的消息缓冲区，消息本身是自解释的，通过包头可以计算整个包长
 //         消息本身格式【消息头+包头+包体】 
-void CSocekt::threadRecvProcFunc(char *pMsgBuf)
+void CSocket::threadRecvProcFunc(char *pMsgBuf)
 {
 
     return;

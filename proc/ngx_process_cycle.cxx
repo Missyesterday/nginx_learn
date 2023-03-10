@@ -207,6 +207,8 @@ static void ngx_worker_process_init(int inum)
     //线程池代码，率先创建，至少要比和socket相关的内容优先
     CConfig *p_config = CConfig::GetInstance();
     int tmpthreadnums = p_config->GetIntDefault("ProcMsgRecvWorkThreadCount",5); //处理接收到的消息的线程池中线程数量
+    
+    //Create()函数相当于线程的初始化
     if(g_threadpool.Create(tmpthreadnums) == false)  //创建线程池中线程
     {
         //内存没释放，但是简单粗暴退出；

@@ -25,7 +25,7 @@
 //参数port：为1，则表示要把端口信息也放到组合成的字符串里，为0，则不包含端口信息
 //参数text：文本写到这里
 //参数len：文本的宽度在这里记录
-size_t CSocekt::ngx_sock_ntop(struct sockaddr *sa,int port,u_char *text,size_t len)
+size_t CSocket::ngx_sock_ntop(struct sockaddr *sa,int port,u_char *text,size_t len)
 {
     struct sockaddr_in   *sin;
     u_char               *p;

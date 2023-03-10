@@ -69,7 +69,7 @@ nginx的源码在`src/`目录下，可以使用VSCode查看源码。
 
 ## 5. 网络通讯之epoll代码
 
-在`net/ngx_c_sockt`中定义`CSocekt`类，围绕`CSocket`类来编写代码.
+在`net/ngx_c_sockt`中定义`CSocket`类，围绕`CSocket`类来编写代码.
 
 ### 5.1 连接池
 

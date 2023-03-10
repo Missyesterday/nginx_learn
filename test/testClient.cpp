@@ -5,6 +5,8 @@
 #include <stdlib.h>
 #include <iostream>
 
+#include "ngx_c_crc32.h"
+
 
 //结构定义------------------------------------
 #pragma pack (1) //对齐方式,1字节对齐 
@@ -48,6 +50,8 @@ int SendData(int sSocket, char *p_sendbuf, int ibuflen)
 		if ((tmp_sret <= 0) || (tmp_sret == 0))
 		{
 			//有错误发生了
+            std::cout << "错误send" << std::endl;
+
 			return -1;
 		}
 		uwrote += tmp_sret;
@@ -57,6 +61,8 @@ int SendData(int sSocket, char *p_sendbuf, int ibuflen)
 
 int main()
 {
+    //创建CRC32
+    CCRC32   *p_crc32 = CCRC32::GetInstance();
     //创建套接字
     int fd = socket(AF_INET, SOCK_STREAM, 0);
 
@@ -82,20 +88,27 @@ int main()
     int i = 0;
     while(1)
     {
+        CCRC32   *p_crc32 = CCRC32::GetInstance();
+
         char *p_sendbuf = (char *)new char[g_iLenPkgHeader + sizeof(STRUCT_REGISTER)];
 
-	    LPCOMM_PKG_HEADER         pinfohead;
-	    pinfohead = (LPCOMM_PKG_HEADER)p_sendbuf;
-	    pinfohead->msgCode = 1;
-	    pinfohead->msgCode = htons(pinfohead->msgCode);
-	    pinfohead->crc32 = htonl(123); //测试，所以随便来 一个
-	    pinfohead->pkgLen = htons(g_iLenPkgHeader + sizeof(STRUCT_REGISTER));
+        LPCOMM_PKG_HEADER         pinfohead;
+        pinfohead = (LPCOMM_PKG_HEADER)p_sendbuf;
+        pinfohead->msgCode = 5;
+        pinfohead->msgCode = htons(pinfohead->msgCode);
+        //pinfohead->crc32 = htonl(123); //测试，所以随便来 一个
+        pinfohead->pkgLen = htons(g_iLenPkgHeader + sizeof(STRUCT_REGISTER));
 
-	    LPSTRUCT_REGISTER pstruc_sendstruc = (LPSTRUCT_REGISTER)(p_sendbuf + g_iLenPkgHeader);
-	    pstruc_sendstruc->iType = htonl(100);
-	    strcpy(pstruc_sendstruc->username, "1234");
+        LPSTRUCT_REGISTER pstruc_sendstruc = (LPSTRUCT_REGISTER)(p_sendbuf + g_iLenPkgHeader);
+        pstruc_sendstruc->iType = htonl(100);
+        strcpy(pstruc_sendstruc->username, "1234");
+        strcpy(pstruc_sendstruc->password, "12354");
 
-        SendData(fd, p_sendbuf, g_iLenPkgHeader + sizeof(STRUCT_REGISTER));
+        //crc值需要最后算的
+        pinfohead->crc32   = p_crc32->Get_CRC((unsigned char *)pstruc_sendstruc, sizeof(STRUCT_REGISTER));
+        pinfohead->crc32   = htonl(pinfohead->crc32); //针对四字节数字，主机序转网络序
+        if(SendData(fd, p_sendbuf, g_iLenPkgHeader + sizeof(STRUCT_REGISTER)) > 0)
+            std::cout << "发送成功" << std::endl;
 	
 
 
@@ -118,6 +131,30 @@ int main()
         //     printf("server closed...");
         //     //客户端结束应该退出循环
         // }
+        // sleep(1);
+
+        
+        //再发个登录命令
+        p_sendbuf = (char *)new char[g_iLenPkgHeader + sizeof(STRUCT_LOGIN)];
+
+        //LPCOMM_PKG_HEADER         pinfohead;
+        pinfohead = (LPCOMM_PKG_HEADER)p_sendbuf;
+        pinfohead->msgCode = 6;  //变化一下
+        pinfohead->msgCode = htons(pinfohead->msgCode);
+        //pinfohead->crc32 = htonl(345); //测试，所以随便来 一个
+        pinfohead->pkgLen = htons(g_iLenPkgHeader + sizeof(STRUCT_LOGIN));
+
+        LPSTRUCT_LOGIN pstruc_sendstruc2 = (LPSTRUCT_LOGIN)(p_sendbuf + g_iLenPkgHeader);
+        strcpy(pstruc_sendstruc2->username, "5678");
+
+        //crc值需要最后算的
+        pinfohead->crc32 = p_crc32->Get_CRC((unsigned char *)pstruc_sendstruc2, sizeof(STRUCT_LOGIN));
+        pinfohead->crc32 = htonl(pinfohead->crc32); //针对四字节数字，主机序转网络序
+
+        if (SendData(fd, p_sendbuf, g_iLenPkgHeader + sizeof(STRUCT_LOGIN)) > 0)
+        {
+            std::cout << "发送成功" << std::endl;
+        }
         sleep(1);
         close(fd);
         break;

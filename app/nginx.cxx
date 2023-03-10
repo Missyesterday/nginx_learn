@@ -16,7 +16,8 @@
 #include "ngx_comm.h"
 #include "ngx_c_memory.h"
 #include "ngx_c_threadpool.h"
-
+#include "ngx_c_crc32.h"       //和crc32校验算法有关 
+#include "ngx_c_slogic.h"      //和socket通讯相关
 
 //本文件用的函数声明
 static void freeresource();
@@ -29,8 +30,9 @@ char    **g_os_argv;            //原始命令行参数数组,在main中会被�
 char    *gp_envmem=NULL;        //指向自己分配的env环境变量的内存，在ngx_init_setproctitle()函数中会被分配内存
 int     g_daemonized=0;         //守护进程标记，标记是否启用了守护进程模式，0：未启用，1：启用了
 
-//socket相关
-CSocekt g_socket;               //socket全局对象
+//socket/线程池相关
+//CSocket      g_socket;          //socket全局对象
+CLogicSocket   g_socket;        //socket全局对象  
 
 CThreadPool  g_threadpool;      //线程池全局对象
 //和进程本身有关的全局量
@@ -101,7 +103,10 @@ int main(int argc, char *const *argv)
 
     //(2.1)内存单例类可以在这里初始化，返回值不用保存
     CMemory::GetInstance();	
+    //(2.2)crc32校验算法单例类可以在这里初始化，返回值不用保存
+    CCRC32::GetInstance();
 
+    
     // -------------------------------------------------------
     //3. 一些初始化函数
     //创建/打开日志文件

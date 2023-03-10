@@ -22,14 +22,14 @@
 #include "ngx_c_memory.h"
 
 //从连接池中获取一个空闲连接【当一个客户端连接TCP进入，我希望把这个连接和我的 连接池中的 一个连接【对象】绑到一起，后续 我可以通过这个连接，把这个对象拿到，因为对象里边可以记录各种信息】
-lpngx_connection_t CSocekt::ngx_get_connection(int isock)
+lpngx_connection_t CSocket::ngx_get_connection(int isock)
 {
     lpngx_connection_t  c = m_pfree_connections; //空闲连接链表头
 
     if(c == NULL)
     {
         //系统应该控制连接数量，防止空闲连接被耗尽，能走到这里，都不正常
-        ngx_log_stderr(0,"CSocekt::ngx_get_connection()中空闲链表为空,这不应该!");
+        ngx_log_stderr(0,"CSocket::ngx_get_connection()中空闲链表为空,这不应该!");
         return NULL;
     }
 
@@ -64,7 +64,7 @@ lpngx_connection_t CSocekt::ngx_get_connection(int isock)
 }
 
 //归还参数c所代表的连接到到连接池中，注意参数类型是lpngx_connection_t
-void CSocekt::ngx_free_connection(lpngx_connection_t c) 
+void CSocket::ngx_free_connection(lpngx_connection_t c) 
 {
     if(c->ifnewrecvMem == true)
     {
@@ -86,11 +86,11 @@ void CSocekt::ngx_free_connection(lpngx_connection_t c)
 
 //用户连入，我们accept4()时，得到的socket在处理中产生失败，则资源用这个函数释放【因为这里涉及到好几个要释放的资源，所以写成函数】
 //我们把ngx_close_accepted_connection()函数改名为让名字更通用，并从文件ngx_socket_accept.cxx迁移到本文件中，并改造其中代码，注意顺序
-void CSocekt::ngx_close_connection(lpngx_connection_t c)
+void CSocket::ngx_close_connection(lpngx_connection_t c)
 {
     if(close(c->fd) == -1)
     {
-        ngx_log_error_core(NGX_LOG_ALERT,errno,"CSocekt::ngx_close_connection()中close(%d)失败!",c->fd);  
+        ngx_log_error_core(NGX_LOG_ALERT,errno,"CSocket::ngx_close_connection()中close(%d)失败!",c->fd);  
     }
     c->fd = -1; //官方nginx这么写，这么写有意义；    
     ngx_free_connection(c); //把释放代码放在最后边，感觉更合适

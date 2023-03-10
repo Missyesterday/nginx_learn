@@ -23,7 +23,7 @@
 #include "ngx_c_memory.h"
 
 //构造函数
-CSocekt::CSocekt()
+CSocket::CSocket()
 {
       //配置相关
     m_worker_connections = 1;    //epoll连接最大项数
@@ -40,16 +40,16 @@ CSocekt::CSocekt()
     m_iLenPkgHeader = sizeof(COMM_PKG_HEADER);    //包头的sizeof值【占用的字节数】
     m_iLenMsgHeader =  sizeof(STRUC_MSG_HEADER);  //消息头的sizeof值【占用的字节数】
 
-    m_iRecvMsgQueueCount = 0;    //收消息队列
+    // m_iRecvMsgQueueCount = 0;    //收消息队列
 
     //多线程相关
-    pthread_mutex_init(&m_recvMessageQueueMutex, NULL); //互斥量初始化
+    // pthread_mutex_init(&m_recvMessageQueueMutex, NULL); //互斥量初始化
 
     return;	
 }
 
 //释放函数
-CSocekt::~CSocekt()
+CSocket::~CSocket()
 {
     //释放必须的内存
     std::vector<lpngx_listening_t>::iterator pos;	
@@ -68,19 +68,19 @@ CSocekt::~CSocekt()
     if(m_pconnections != NULL)//释放连接池
         delete [] m_pconnections;
 
-    //(3)接收消息队列中内容释放
+   /*  //(3)接收消息队列中内容释放
     clearMsgRecvQueue();
 
     
     //(4)多线程相关
-    pthread_mutex_destroy(&m_recvMessageQueueMutex);    //互斥量释放
+    pthread_mutex_destroy(&m_recvMessageQueueMutex);    //互斥量释放 */
     
     return;
 }
 
 //各种清理函数-------------------------
 //清理接收消息队列，注意这个函数的写法。
-void CSocekt::clearMsgRecvQueue()
+/* void CSocket::clearMsgRecvQueue()
 {
 	char * sTmpMempoint;
 	CMemory *p_memory = CMemory::GetInstance();
@@ -92,11 +92,11 @@ void CSocekt::clearMsgRecvQueue()
 		m_MsgRecvQueue.pop_front(); 
 		p_memory->FreeMemory(sTmpMempoint);
 	}	
-}
+} */
 
 //初始化函数【fork()子进程之前干这个事】
 //成功返回true，失败返回false
-bool CSocekt::Initialize()
+bool CSocket::Initialize()
 {
    
     ReadConf();  //读配置项
@@ -105,7 +105,7 @@ bool CSocekt::Initialize()
 }
 
 //专门用于读各种配置项
-void CSocekt::ReadConf()
+void CSocket::ReadConf()
 {
     CConfig *p_config = CConfig::GetInstance();
     m_worker_connections = p_config->GetIntDefault("worker_connections",m_worker_connections); //epoll连接的最大项数
@@ -115,7 +115,7 @@ void CSocekt::ReadConf()
 
 //监听端口【支持多个端口】，这里遵从nginx的函数命名
 //在创建worker进程之前就要执行这个函数；
-bool CSocekt::ngx_open_listening_sockets()
+bool CSocket::ngx_open_listening_sockets()
 {    
     int                isock;                //socket
     struct sockaddr_in serv_addr;            //服务器的地址结构体
@@ -137,7 +137,7 @@ bool CSocekt::ngx_open_listening_sockets()
         isock = socket(AF_INET,SOCK_STREAM,0); //系统函数，成功返回非负描述符，出错返回-1
         if(isock == -1)
         {
-            ngx_log_stderr(errno,"CSocekt::Initialize()中socket()失败,i=%d.",i);
+            ngx_log_stderr(errno,"CSocket::Initialize()中socket()失败,i=%d.",i);
             //其实这里直接退出，那如果以往有成功创建的socket呢？就没得到释放吧，当然走到这里表示程序不正常，应该整个退出，也没必要释放了 
             return false;
         }
@@ -149,14 +149,14 @@ bool CSocekt::ngx_open_listening_sockets()
         int reuseaddr = 1;  //1:打开对应的设置项
         if(setsockopt(isock,SOL_SOCKET, SO_REUSEADDR,(const void *) &reuseaddr, sizeof(reuseaddr)) == -1)
         {
-            ngx_log_stderr(errno,"CSocekt::Initialize()中setsockopt(SO_REUSEADDR)失败,i=%d.",i);
+            ngx_log_stderr(errno,"CSocket::Initialize()中setsockopt(SO_REUSEADDR)失败,i=%d.",i);
             close(isock); //无需理会是否正常执行了                                                  
             return false;
         }
         //设置该socket为非阻塞
         if(setnonblocking(isock) == false)
         {                
-            ngx_log_stderr(errno,"CSocekt::Initialize()中setnonblocking()失败,i=%d.",i);
+            ngx_log_stderr(errno,"CSocket::Initialize()中setnonblocking()失败,i=%d.",i);
             close(isock);
             return false;
         }
@@ -170,7 +170,7 @@ bool CSocekt::ngx_open_listening_sockets()
         //绑定服务器地址结构体
         if(bind(isock, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) == -1)
         {
-            ngx_log_stderr(errno,"CSocekt::Initialize()中bind()失败,i=%d.",i);
+            ngx_log_stderr(errno,"CSocket::Initialize()中bind()失败,i=%d.",i);
             close(isock);
             return false;
         }
@@ -178,7 +178,7 @@ bool CSocekt::ngx_open_listening_sockets()
         //开始监听
         if(listen(isock,NGX_LISTEN_BACKLOG) == -1)
         {
-            ngx_log_stderr(errno,"CSocekt::Initialize()中listen()失败,i=%d.",i);
+            ngx_log_stderr(errno,"CSocket::Initialize()中listen()失败,i=%d.",i);
             close(isock);
             return false;
         }
@@ -197,7 +197,7 @@ bool CSocekt::ngx_open_listening_sockets()
 }
 
 //设置socket连接为非阻塞模式【这种函数的写法很固定】：非阻塞，概念在五章四节讲解的非常清楚【不断调用，不断调用这种：拷贝数据的时候是阻塞的】
-bool CSocekt::setnonblocking(int sockfd) 
+bool CSocket::setnonblocking(int sockfd) 
 {    
     int nb=1; //0：清除，1：设置  
     if(ioctl(sockfd, FIONBIO, &nb) == -1) //FIONBIO：设置/清除非阻塞I/O标记：0：清除，1：设置
@@ -213,13 +213,13 @@ bool CSocekt::setnonblocking(int sockfd)
     int opts = fcntl(sockfd, F_GETFL);  //用F_GETFL先获取描述符的一些标志信息
     if(opts < 0) 
     {
-        ngx_log_stderr(errno,"CSocekt::setnonblocking()中fcntl(F_GETFL)失败.");
+        ngx_log_stderr(errno,"CSocket::setnonblocking()中fcntl(F_GETFL)失败.");
         return false;
     }
     opts |= O_NONBLOCK; //把非阻塞标记加到原来的标记上，标记这是个非阻塞套接字【如何关闭非阻塞呢？opts &= ~O_NONBLOCK,然后再F_SETFL一下即可】
     if(fcntl(sockfd, F_SETFL, opts) < 0) 
     {
-        ngx_log_stderr(errno,"CSocekt::setnonblocking()中fcntl(F_SETFL)失败.");
+        ngx_log_stderr(errno,"CSocket::setnonblocking()中fcntl(F_SETFL)失败.");
         return false;
     }
     return true;
@@ -227,7 +227,7 @@ bool CSocekt::setnonblocking(int sockfd)
 }
 
 //关闭socket，什么时候用，我们现在先不确定，先把这个函数预备在这里
-void CSocekt::ngx_close_listening_sockets()
+void CSocket::ngx_close_listening_sockets()
 {
     for(int i = 0; i < m_ListenPortCount; i++) //要关闭这么多个监听端口
     {  
@@ -240,14 +240,14 @@ void CSocekt::ngx_close_listening_sockets()
 
 //--------------------------------------------------------------------
 //(1)epoll功能初始化，子进程中进行 ，本函数被ngx_worker_process_init()所调用
-int CSocekt::ngx_epoll_init()
+int CSocket::ngx_epoll_init()
 {
     //(1)很多内核版本不处理epoll_create的参数，只要该参数>0即可
     //创建一个epoll对象，创建了一个红黑树，还创建了一个双向链表
     m_epollhandle = epoll_create(m_worker_connections);   //直接以epoll连接的最大项数为参数，肯定是>0的； 
     if (m_epollhandle == -1) 
     {
-        ngx_log_stderr(errno,"CSocekt::ngx_epoll_init()中epoll_create()失败.");
+        ngx_log_stderr(errno,"CSocket::ngx_epoll_init()中epoll_create()失败.");
         exit(2); //这是致命问题了，直接退，资源由系统释放吧，这里不刻意释放了，比较麻烦
     }
 
@@ -291,7 +291,7 @@ int CSocekt::ngx_epoll_init()
         if (c == NULL)
         {
             //这是致命问题，刚开始怎么可能连接池就为空呢？
-            ngx_log_stderr(errno,"CSocekt::ngx_epoll_init()中ngx_get_connection()失败.");
+            ngx_log_stderr(errno,"CSocket::ngx_epoll_init()中ngx_get_connection()失败.");
             exit(2); //这是致命问题了，直接退，资源由系统释放吧，这里不刻意释放了，比较麻烦
         }
         c->listening = (*pos);   //连接对象 和监听对象关联，方便通过连接对象找监听对象
@@ -301,7 +301,7 @@ int CSocekt::ngx_epoll_init()
 
         //对监听端口的读事件设置处理方法，因为监听端口是用来等对方连接的发送三路握手的，所以监听端口关心的就是读事件
         //rhandler是一个成员函数指针
-        c->rhandler = &CSocekt::ngx_event_accept;
+        c->rhandler = &CSocket::ngx_event_accept;
 
         //往监听socket上增加监听事件，从而开始让监听端口履行其职责【如果不加这行，虽然端口能连上，但不会触发ngx_epoll_process_events()里边的epoll_wait()往下走】
         if(ngx_epoll_add_event((*pos)->fd,       //socekt句柄
@@ -319,7 +319,7 @@ int CSocekt::ngx_epoll_init()
 
 /*
 //(2)监听端口开始工作，监听端口要开始工作，必须为其增加读事件，因为监听端口只关心读事件
-void CSocekt::ngx_epoll_listenportstart()
+void CSocket::ngx_epoll_listenportstart()
 {
     std::vector<lpngx_listening_t>::iterator pos;	
 	for(pos = m_ListenSocketList.begin(); pos != m_ListenSocketList.end(); ++pos) //vector
@@ -339,7 +339,7 @@ void CSocekt::ngx_epoll_listenportstart()
 //eventtype：事件类型  ，一般就是用系统的枚举值，增加，删除，修改等;
 //c：对应的连接池中的连接的指针
 //返回值：成功返回1，失败返回-1；
-int CSocekt::ngx_epoll_add_event(int fd,
+int CSocket::ngx_epoll_add_event(int fd,
                                 int readevent,int writeevent,
                                 uint32_t otherflag, 
                                 uint32_t eventtype, 
@@ -390,7 +390,7 @@ int CSocekt::ngx_epoll_add_event(int fd,
 
     if(epoll_ctl(m_epollhandle, eventtype, fd, &ev) == -1)
     {
-        ngx_log_stderr(errno,"CSocekt::ngx_epoll_add_event()中epoll_ctl(%d,%d,%d,%ud,%ud)失败.",fd,readevent,writeevent,otherflag,eventtype);
+        ngx_log_stderr(errno,"CSocket::ngx_epoll_add_event()中epoll_ctl(%d,%d,%d,%ud,%ud)失败.",fd,readevent,writeevent,otherflag,eventtype);
         //exit(2); //这是致命问题了，直接退，资源由系统释放吧，这里不刻意释放了，比较麻烦，后来发现不能直接退；
         return -1;
     }
@@ -401,7 +401,7 @@ int CSocekt::ngx_epoll_add_event(int fd,
 //参数unsigned int timer：epoll_wait()阻塞的时长，单位是毫秒；
 //返回值，1：正常返回  ,0：有问题返回，一般不管是正常还是问题返回，都应该保持进程继续运行
 //本函数被ngx_process_events_and_timers()调用，而ngx_process_events_and_timers()是在子进程的死循环中被反复调用
-int CSocekt::ngx_epoll_process_events(int timer) 
+int CSocket::ngx_epoll_process_events(int timer) 
 {   
     //等待事件，事件会返回到m_events里，最多返回NGX_MAX_EVENTS个事件【因为我只提供了这些内存】；
     //阻塞timer这么长时间除非：a)阻塞时间到达 b)阻塞期间收到事件会立刻返回c)调用时有事件也会立刻返回d)如果来个信号，比如你用kill -1 pid测试
@@ -420,13 +420,13 @@ int CSocekt::ngx_epoll_process_events(int timer)
         if(errno == EINTR) 
         {
             //信号所致，直接返回，一般认为这不是毛病，但还是打印下日志记录一下，因为一般也不会人为给worker进程发送消息
-            ngx_log_error_core(NGX_LOG_INFO,errno,"CSocekt::ngx_epoll_process_events()中epoll_wait()失败!"); 
+            ngx_log_error_core(NGX_LOG_INFO,errno,"CSocket::ngx_epoll_process_events()中epoll_wait()失败!"); 
             return 1;  //正常返回
         }
         else
         {
             //这被认为应该是有问题，记录日志
-            ngx_log_error_core(NGX_LOG_ALERT,errno,"CSocekt::ngx_epoll_process_events()中epoll_wait()失败!"); 
+            ngx_log_error_core(NGX_LOG_ALERT,errno,"CSocket::ngx_epoll_process_events()中epoll_wait()失败!"); 
             return 0;  //非正常返回 
         }
     }
@@ -440,7 +440,7 @@ int CSocekt::ngx_epoll_process_events(int timer)
         }
         //如果 == -1
         //无限等待【所以不存在超时】，但却没返回任何事件，这应该不正常有问题        
-        ngx_log_error_core(NGX_LOG_ALERT,0,"CSocekt::ngx_epoll_process_events()中epoll_wait()没超时却没返回任何事件!"); 
+        ngx_log_error_core(NGX_LOG_ALERT,0,"CSocket::ngx_epoll_process_events()中epoll_wait()没超时却没返回任何事件!"); 
         return 0; //非正常返回 
     }
 
@@ -468,7 +468,7 @@ int CSocekt::ngx_epoll_process_events(int timer)
             //第三个事件，假如这第三个事件，也跟第一个事件对应的是同一个连接，那这个条件就会成立；那么这种事件，属于过期事件，不该处理
 
             //这里可以增加个日志，也可以不增加日志
-            ngx_log_error_core(NGX_LOG_DEBUG,0,"CSocekt::ngx_epoll_process_events()中遇到了fd=-1的过期事件:%p.",c); 
+            ngx_log_error_core(NGX_LOG_DEBUG,0,"CSocket::ngx_epoll_process_events()中遇到了fd=-1的过期事件:%p.",c); 
             continue; //这种事件就不处理即可
         }
 
@@ -490,7 +490,7 @@ int CSocekt::ngx_epoll_process_events(int timer)
             //如果收到了若干个事件，其中连接关闭也搞了多次，导致这个instance标志位被取反2次，那么，造成的结果就是：还是有可能遇到某些过期事件没有被发现【这里也就没有被continue】，照旧被当做没过期事件处理了；
                   //如果是这样，那就只能被照旧处理了。可能会造成偶尔某个连接被误关闭？但是整体服务器程序运行应该是平稳，问题不大的，这种漏网而被当成没过期来处理的的过期事件应该是极少发生的
 
-            ngx_log_error_core(NGX_LOG_DEBUG,0,"CSocekt::ngx_epoll_process_events()中遇到了instance值改变的过期事件:%p.",c); 
+            ngx_log_error_core(NGX_LOG_DEBUG,0,"CSocket::ngx_epoll_process_events()中遇到了instance值改变的过期事件:%p.",c); 
 
             continue; //这种事件就不处理即可
         }
@@ -511,8 +511,8 @@ int CSocekt::ngx_epoll_process_events(int timer)
             //已连接发送数据来,这个也会成立
             //c->r_ready = 1;               //标记可以读；【从连接池拿出一个连接时这个连接的所有成员都是0】            
             (this->* (c->rhandler) )(c);    //注意括号的运用来正确设置优先级，防止编译出错；【如果是个新客户连入
-                                              //如果新连接进入，这里执行的应该是CSocekt::ngx_event_accept(c)】            
-                                              //如果是已经连入，发送数据到这里，则这里执行的应该是 CSocekt::ngx_wait_request_handler
+                                              //如果新连接进入，这里执行的应该是CSocket::ngx_event_accept(c)】            
+                                              //如果是已经连入，发送数据到这里，则这里执行的应该是 CSocket::ngx_wait_request_handler
         }
         
         if(revents & EPOLLOUT) //如果是写事件【对方关闭连接也触发这个，再研究。。。。。。】，注意上边的 if(revents & (EPOLLERR|EPOLLHUP))  revents |= EPOLLIN|EPOLLOUT; 读写标记都给加上了v
