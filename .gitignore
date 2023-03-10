@@ -64,4 +64,4 @@ cmake-build-debug-one_gcc
 .idea
 .DS_Store
 nginx
-
+test/client
