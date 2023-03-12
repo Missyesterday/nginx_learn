@@ -186,10 +186,16 @@ static void ngx_worker_process_cycle(int inum,const char *pprocname)
         //ngx_log_error_core(0,0,"good--这是子进程，编号为%d,pid为%P",inum,ngx_pid);
 
         ngx_process_events_and_timers(); //处理网络事件和定时器事件
-    } //end for(;;)
+/*         if(xxx)
+        {
+            g_stopEvent = 1;
+            break
+        }
+ */    } //end for(;;)
     
     //如果从这个循环跳出来，考虑在这里停止线程池；
     g_threadpool.StopAll(); 
+    g_socket.Shutdown_subproc(); //socket需要释放的东西考虑释放；
     return;
 }
 
@@ -215,6 +221,13 @@ static void ngx_worker_process_init(int inum)
         exit(-2);
     }
     sleep(1); //再休息1秒；
+    
+    if(g_socket.Initialize_subproc() == false) //初始化子进程需要具备的一些多线程能力相关的信息
+    {
+        //内存没释放，但是简单粗暴退出；
+        exit(-2);
+    }
+    
     //如下这些代码参照官方nginx里的ngx_event_process_init()函数中的代码
     g_socket.ngx_epoll_init();           //初始化epoll相关内容，同时 往监听socket上增加监听事件，从而开始让监听端口履行其职责
     //g_socket.ngx_epoll_listenportstart();//往监听socket上增加监听事件，从而开始让监听端口履行其职责【如果不加这行，虽然端口能连上，但不会触发ngx_epoll_process_events()里边的epoll_wait()往下走】

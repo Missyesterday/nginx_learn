@@ -113,7 +113,7 @@ void* CThreadPool::ThreadFunc(void* threadData)
         //线程用pthread_mutex_lock()函数去锁定指定的mutex变量，若该mutex已经被另外一个线程锁定了，该调用将会阻塞线程直到mutex被解锁。  
         //m_pthreadMutex是一个静态成员, 所以可以使用
         err = pthread_mutex_lock(&m_pthreadMutex);  
-        if(err != 0) ngx_log_stderr(err,"CThreadPool::ThreadFunc()pthread_mutex_lock()失败，返回的错误码为%d!",err);//有问题，要及时报告
+        if(err != 0) ngx_log_stderr(err,"CThreadPool::ThreadFunc()的pthread_mutex_lock()失败，返回的错误码为%d!",err);//有问题，要及时报告
         
         // CThreadPool* test = new CThreadPool();
         // test->m_MsgRecvQueue.push_back(nullptr);
@@ -124,7 +124,7 @@ void* CThreadPool::ThreadFunc(void* threadData)
         //pthread_cond_wait()函数，如果只有一条消息 唤醒了两个线程干活，那么其中有一个线程拿不到消息，那如果不用while写，就会出问题，所以被惊醒后必须再次用while拿消息，拿到才走下来；
         //while( (jobbuf = g_socket.outMsgRecvQueue()) == NULL && m_shutdown == false)
         // TODO:可以尝试使用C++11的多线程开发技术实现线程池,
-        while ( (pThreadPoolObj->m_MsgRecvQueue.size() == 0) && m_shutdown == false)
+        while ( (pThreadPoolObj->m_MsgRecvQueue.size() == 0) && m_shutdown == false) //注意这个条件取反中间是 || 
         {
             //如果这个pthread_cond_wait被唤醒【被唤醒后程序执行流程往下走的前提是拿到了锁--官方：pthread_cond_wait()返回时，互斥量再次被锁住】，
             //那么会立即再次执行g_socket.outMsgRecvQueue()，如果拿到了一个NULL，则继续在这里wait着();
@@ -183,7 +183,7 @@ void* CThreadPool::ThreadFunc(void* threadData)
                
         //可以解锁互斥量了
         err = pthread_mutex_unlock(&m_pthreadMutex); 
-        if(err != 0)  ngx_log_stderr(err,"CThreadPool::ThreadFunc()pthread_cond_wait()失败，返回的错误码为%d!",err);//有问题，要及时报告
+        if(err != 0)  ngx_log_stderr(err,"CThreadPool::ThreadFunc()pthread_mutex_unlock()失败，返回的错误码为%d!",err);//有问题，要及时报告
         
         //能走到这里的，就是有消息可以处理，开始处理
         ++pThreadPoolObj->m_iRunningThreadNum;    //原子+1【记录正在干活的线程数量增加1】，这比互斥量要快很多
@@ -266,7 +266,7 @@ void CThreadPool::inMsgRecvQueueAndSignal(char *buf)
     err = pthread_mutex_unlock(&m_pthreadMutex);   
     if(err != 0)
     {
-        ngx_log_stderr(err,"CThreadPool::inMsgRecvQueueAndSignal()pthread_mutex_unlock()失败，返回的错误码为%d!",err);
+        ngx_log_stderr(err,"CThreadPool::inMsgRecvQueueAndSignal()pthread_mutex_unlock()失败，返回的错误码为%d!", err);
     }
 
     //可以激发一个线程来干活了

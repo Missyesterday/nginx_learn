@@ -40,5 +40,6 @@ extern pid_t         ngx_parent;
 extern ngx_log_t     ngx_log;
 extern int           ngx_process;   
 extern sig_atomic_t  ngx_reap;   
+extern int           g_stopEvent;
 
 #endif

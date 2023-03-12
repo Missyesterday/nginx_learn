@@ -129,44 +129,63 @@ void CSocket::ngx_event_accept(lpngx_connection_t oldc)
             if(setnonblocking(s) == false)
             {
                 //设置非阻塞居然失败
-                ngx_close_connection(newc);
+                ngx_close_connection(newc); //关闭socket,这种可以立即回收这个连接，无需延迟，因为其上还没有数据收发，谈不到业务逻辑因此无需延迟；
                 return; //直接返回
             }
         }
 
         newc->listening = oldc->listening;                    //连接对象 和监听对象关联，方便通过连接对象找监听对象【关联到监听端口】
-        newc->w_ready = 1;                                    //标记可以写，新连接写事件肯定是ready的；【从连接池拿出一个连接时这个连接的所有成员都是0】            
-        newc->rhandler = &CSocket::ngx_wait_request_handler;  //设置数据来时的读处理函数，其实官方nginx中是ngx_http_wait_request_handler()
-        //客户端应该主动发送第一次的数据，这里将读事件加入epoll监控
-        if(ngx_epoll_add_event(s,                 //socket句柄
-                                1,0,              //读，写
-                                0,//EPOLLET          //其他补充标记【EPOLLET(高速模式，边缘触发ET)】
+        //newc->w_ready = 1;                                    //标记可以写，新连接写事件肯定是ready的；【从连接池拿出一个连接时这个连接的所有成员都是0】            
+        
+        newc->rhandler = &CSocket::ngx_read_request_handler;  //设置数据来时的读处理函数，其实官方nginx中是ngx_http_wait_request_handler()
+        newc->whandler = &CSocket::ngx_write_request_handler; //设置数据发送时的写处理函数。
+        //客户端应该主动发送第一次的数据，这里将读事件加入epoll监控，这样当客户端发送数据来时，会触发ngx_wait_request_handler()被ngx_epoll_process_events()调用
+        /*if(ngx_epoll_add_event(s,                 //socket句柄
+                                1,0,              //读，写 ,这里读为1，表示客户端应该主动给我服务器发送消息，我服务器需要首先收到客户端的消息；
+                                0,//EPOLLET,      //其他补充标记【EPOLLET(高速模式，边缘触发ET)】
+                                                      //后续因为实际项目需要，我们采用LT模式【水平触发模式/低速模式】
                                 EPOLL_CTL_ADD,    //事件类型【增加，还有删除/修改】                                    
                                 newc              //连接池中的连接
                                 ) == -1)
+                                */
+         if(ngx_epoll_oper_event(
+                                s,                  //socekt句柄
+                                EPOLL_CTL_ADD,      //事件类型，这里是增加
+                                EPOLLIN|EPOLLRDHUP, //标志，这里代表要增加的标志,EPOLLIN：可读，EPOLLRDHUP：TCP连接的远端关闭或者半关闭,如果使用ET可以增加EPOLLET标记
+                                0,                  //对于事件类型为增加的，不需要这个参数
+                                newc                //连接池中的连接
+                                ) == -1)         
         {
             //增加事件失败，失败日志在ngx_epoll_add_event中写过了，因此这里不多写啥；
-            ngx_close_connection(newc);
+            ngx_close_connection(newc);//关闭socket,这种可以立即回收这个连接，无需延迟，因为其上还没有数据收发，谈不到业务逻辑因此无需延迟；
             return; //直接返回
-        } 
+        }
+    /*
+        else
+        {
+            //打印下发送缓冲区大小
+            int           n;
+            socklen_t     len;
+            len = sizeof(int);
+            getsockopt(s,SOL_SOCKET,SO_SNDBUF, &n, &len);
+            ngx_log_stderr(0,"发送缓冲区的大小为%d!",n); //87040
 
+            n = 0;
+            getsockopt(s,SOL_SOCKET,SO_RCVBUF, &n, &len);
+            ngx_log_stderr(0,"接收缓冲区的大小为%d!",n); //374400
+
+            int sendbuf = 2048;
+            if (setsockopt(s, SOL_SOCKET, SO_SNDBUF,(const void *) &sendbuf,n) == 0)
+            {
+                ngx_log_stderr(0,"发送缓冲区大小成功设置为%d!",sendbuf); 
+            }
+
+             getsockopt(s,SOL_SOCKET,SO_SNDBUF, &n, &len);
+            ngx_log_stderr(0,"发送缓冲区的大小为%d!",n); //87040
+        }
+        */
         break;  //一般就是循环一次就跳出去
     } while (1);   
 
     return;
 }
-
-//用户连入，我们accept4()时，得到的socket在处理中产生失败，则资源用这个函数释放【因为这里涉及到好几个要释放的资源，所以写成函数】
-
-/* void CSocket::ngx_close_accepted_connection(lpngx_connection_t c)
-{
-    int fd = c->fd;
-    ngx_free_connection(c);
-    c->fd = -1; //官方nginx这么写，但这是有意义的
-    if(close(fd) == -1)
-    {
-        ngx_log_error_core(NGX_LOG_ALERT,errno,"CSocket::ngx_close_accepted_connection()中close(%d)失败!",fd);  
-    }
-    return;
-}
- */

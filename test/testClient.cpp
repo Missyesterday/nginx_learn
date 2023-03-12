@@ -59,6 +59,7 @@ int SendData(int sSocket, char *p_sendbuf, int ibuflen)
 	return uwrote;
 }
 
+int RecvCommonData(int sClient, char *precvBuffer);
 int main()
 {
     //创建CRC32
@@ -107,11 +108,14 @@ int main()
         //crc值需要最后算的
         pinfohead->crc32   = p_crc32->Get_CRC((unsigned char *)pstruc_sendstruc, sizeof(STRUCT_REGISTER));
         pinfohead->crc32   = htonl(pinfohead->crc32); //针对四字节数字，主机序转网络序
-        if(SendData(fd, p_sendbuf, g_iLenPkgHeader + sizeof(STRUCT_REGISTER)) > 0)
-            std::cout << "发送成功" << std::endl;
+        for(int i = 0; i < 100; ++i)
+        {
+            if(SendData(fd, p_sendbuf, g_iLenPkgHeader + sizeof(STRUCT_REGISTER)) > 0)
+                std::cout << "发送成功" << std::endl;
+        }
 	
 
-
+        sleep(3);
 	    delete[] p_sendbuf; //释放上边的内存
         // sprintf(recvBuf, "data : %d\n", i++);
         // //把字符串的结束符带上
@@ -134,7 +138,7 @@ int main()
         // sleep(1);
 
         
-        //再发个登录命令
+      /*   //再发个登录命令
         p_sendbuf = (char *)new char[g_iLenPkgHeader + sizeof(STRUCT_LOGIN)];
 
         //LPCOMM_PKG_HEADER         pinfohead;
@@ -154,11 +158,96 @@ int main()
         if (SendData(fd, p_sendbuf, g_iLenPkgHeader + sizeof(STRUCT_LOGIN)) > 0)
         {
             std::cout << "发送成功" << std::endl;
+        } */
+       
+        for(int i = 0; i < 100; ++i)
+        {
+        char    recvBuffer[100000] = { 0 };
+	    int rec = RecvCommonData(fd,recvBuffer);
+	    if (rec <=0)
+	    {
+            std::cout << "接收数据失败" << std::endl;
+	    }
+	    char result[10000] = { 0 };
+	    sprintf(result,"非常好，接收数据成功，收到字节数是%d个", rec);	
+        printf("%s\n", result);
         }
-        sleep(1);
         close(fd);
         break;
     }
     return 0;
     
+}
+
+
+//按常规规则收取数据:
+int RecvCommonData(int sClient, char *precvBuffer)
+{
+	int               bytes;
+
+	char              *ptmpbuf;
+	int               rbytes = 0;         //收到的总字节数
+	int               allowbytes;       //总共允许收这么多数据 
+
+	//先收个包头的宽度
+	bytes = recv(sClient, precvBuffer, g_iLenPkgHeader, 0);  
+
+	if ( (bytes == 0))
+		return -1;
+
+	ptmpbuf = precvBuffer;
+	allowbytes = g_iLenPkgHeader;
+	rbytes += bytes;
+
+	if (bytes < g_iLenPkgHeader)
+	{
+		//没收够包头
+contrecvhead:
+		allowbytes = allowbytes - bytes; //允许收的字节数减少
+		ptmpbuf = ptmpbuf + bytes;    //内存向后移动
+		//继续收，
+		bytes = recv(sClient, ptmpbuf, allowbytes, 0);
+		if ((bytes == 0))
+			return -1;
+		rbytes += bytes;
+		if (bytes < allowbytes)
+		{
+			//没收够包头,继续收
+			goto contrecvhead;
+		}
+		//包头收完了，该收其他的了
+		goto recvqita;
+	}
+
+	//收够了
+recvqita:
+	LPCOMM_PKG_HEADER pPkgHeader;
+	pPkgHeader = (LPCOMM_PKG_HEADER)precvBuffer;
+	unsigned short iLen = ntohs(pPkgHeader->pkgLen); //包长
+	//if (iLen > _PKG_MAX_LENGTH)
+	//{
+	//	return SOCKET_ERROR;//非法数据包
+	//}
+	if (iLen == g_iLenPkgHeader)   //该包只有一个包头，已经收完
+	{
+		return iLen;
+	}
+	//继续收包体
+	allowbytes = iLen - g_iLenPkgHeader; //允许收这么多
+	ptmpbuf = precvBuffer + g_iLenPkgHeader; //收缓冲区跳过包头
+
+contrecv2:
+	bytes = recv(sClient, ptmpbuf, allowbytes, 0);
+	if ((bytes == 0))
+		return -1;
+	rbytes += bytes;
+	if (bytes < allowbytes)
+	{
+		//没收够包头,继续收
+		allowbytes = allowbytes - bytes; //允许收的字节数减少
+		ptmpbuf = ptmpbuf + bytes;    //内存向后移动
+		goto contrecv2;
+	}
+	//这里表示收够了
+	return rbytes;
 }
