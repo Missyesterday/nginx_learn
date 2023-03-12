@@ -144,10 +144,62 @@ void CLogicSocket::threadRecvProcFunc(char *pMsgBuf)
     return;	
 }
 
+//心跳包检测时间到，该去检测心跳包是否超时的事宜，本函数是子类函数，实现具体的判断动作
+void CLogicSocket::procPingTimeOutChecking(LPSTRUC_MSG_HEADER tmpmsg,time_t cur_time)
+{
+    CMemory *p_memory = CMemory::GetInstance();
+
+    if(tmpmsg->iCurrsequence == tmpmsg->pConn->iCurrsequence) //此连接没断
+    {
+        lpngx_connection_t p_Conn = tmpmsg->pConn;
+
+        //超时踢的判断标准就是 每次检查的时间间隔*3，超过这个时间没发送心跳包，就踢【可以根据实际情况自由设定】
+               if(/*m_ifkickTimeCount == 1 && */m_ifTimeOutKick == 1)  //能调用到本函数第一个条件肯定成立，所以第一个条件加不加无所谓，主要是第二个条件
+        {
+            //到时间直接踢出去的需求
+            zdClosesocketProc(p_Conn); 
+        }            
+        else if( (cur_time - p_Conn->lastPingTime ) > (m_iWaitTime*3+10) ) //超时踢的判断标准就是 每次检查的时间间隔*3，超过这个时间没发送心跳包，就踢【可以根据实际情况自由设定】
+        {
+            //踢出去【如果此时此刻该用户正好断线，则这个socket可能立即被后续上来的连接复用  如果真有人这么倒霉，赶上这个点了，那么可能错踢，错踢就错踢】            
+            //ngx_log_stderr(0,"时间到不发心跳包，踢出去!");   //感觉OK
+            zdClosesocketProc(p_Conn); 
+        }   
+             
+        p_memory->FreeMemory(tmpmsg);//内存要释放
+    }
+    else //此连接断了
+    {
+        p_memory->FreeMemory(tmpmsg);//内存要释放
+    }
+    return;
+}
+
+//发送没有包体的数据包给客户端
+void CLogicSocket::SendNoBodyPkgToClient(LPSTRUC_MSG_HEADER pMsgHeader,unsigned short iMsgCode)
+{
+    CMemory  *p_memory = CMemory::GetInstance();
+
+    char *p_sendbuf = (char *)p_memory->AllocMemory(m_iLenMsgHeader+m_iLenPkgHeader,false);
+    char *p_tmpbuf = p_sendbuf;
+    
+	memcpy(p_tmpbuf,pMsgHeader,m_iLenMsgHeader);
+	p_tmpbuf += m_iLenMsgHeader;
+
+    LPCOMM_PKG_HEADER pPkgHeader = (LPCOMM_PKG_HEADER)p_tmpbuf;	  //指向的是我要发送出去的包的包头	
+    pPkgHeader->msgCode = htons(iMsgCode);	
+    pPkgHeader->pkgLen = htons(m_iLenPkgHeader); 
+	pPkgHeader->crc32 = 0;		
+    msgSend(p_sendbuf);
+    return;
+}
+
 //----------------------------------------------------------------------------------------------------------
 //处理各种业务逻辑
 bool CLogicSocket::_HandleRegister(lpngx_connection_t pConn,LPSTRUC_MSG_HEADER pMsgHeader,char *pPkgBody,unsigned short iBodyLength)
 {
+    ngx_log_stderr(0,"执行了CLogicSocket::_HandleRegister()!");
+    
     //(1)首先判断包体的合法性
     if(pPkgBody == NULL) //具体看客户端服务器约定，如果约定这个命令[msgCode]必须带包体，那么如果不带包体，就认为是恶意包，直接不处理    
     {        
@@ -168,6 +220,9 @@ bool CLogicSocket::_HandleRegister(lpngx_connection_t pConn,LPSTRUC_MSG_HEADER p
     
     //(3)取得了整个发送过来的数据
     LPSTRUCT_REGISTER p_RecvInfo = (LPSTRUCT_REGISTER)pPkgBody; 
+    p_RecvInfo->iType = ntohl(p_RecvInfo->iType);          //所有数值型,short,int,long,uint64_t,int64_t这种大家都不要忘记传输之前主机网络序，收到后网络转主机序
+    p_RecvInfo->username[sizeof(p_RecvInfo->username)-1]=0;//这非常关键，防止客户端发送过来畸形包，导致服务器直接使用这个数据出现错误。 
+    p_RecvInfo->password[sizeof(p_RecvInfo->password)-1]=0;//这非常关键，防止客户端发送过来畸形包，导致服务器直接使用这个数据出现错误。 
 
     //(4)这里可能要考虑 根据业务逻辑，进一步判断收到的数据的合法性，
        //当前该玩家的状态是否适合收到这个数据等等【比如如果用户没登陆，它就不适合购买物品等等】
@@ -180,7 +235,8 @@ bool CLogicSocket::_HandleRegister(lpngx_connection_t pConn,LPSTRUC_MSG_HEADER p
 	CCRC32   *p_crc32 = CCRC32::GetInstance();
     int iSendLen = sizeof(STRUCT_REGISTER);  
     //a)分配要发送出去的包的内存
-    iSendLen = 65000; //unsigned最大也就是这个值, 发送了65008数据
+
+    //iSendLen = 65000; //unsigned最大也就是这个值
     char *p_sendbuf = (char *)p_memory->AllocMemory(m_iLenMsgHeader+m_iLenPkgHeader+iSendLen,false);//准备发送的格式，这里是 消息头+包头+包体
     //b)填充消息头
     memcpy(p_sendbuf,pMsgHeader,m_iLenMsgHeader);                   //消息头直接拷贝到这里来
@@ -235,5 +291,23 @@ bool CLogicSocket::_HandleRegister(lpngx_connection_t pConn,LPSTRUC_MSG_HEADER p
 bool CLogicSocket::_HandleLogIn(lpngx_connection_t pConn,LPSTRUC_MSG_HEADER pMsgHeader,char *pPkgBody,unsigned short iBodyLength)
 {
     ngx_log_stderr(0,"执行了CLogicSocket::_HandleLogIn()!");
+    return true;
+}
+
+
+//接收并处理客户端发送过来的ping包
+bool CLogicSocket::_HandlePing(lpngx_connection_t pConn,LPSTRUC_MSG_HEADER pMsgHeader,char *pPkgBody,unsigned short iBodyLength)
+{
+    //心跳包要求没有包体；
+    if(iBodyLength != 0)  //有包体则认为是 非法包
+		return false; 
+
+    CLock lock(&pConn->logicPorcMutex); //凡是和本用户有关的访问都考虑用互斥，以免该用户同时发送过来两个命令达到各种作弊目的
+    pConn->lastPingTime = time(NULL);   //更新该变量
+
+    //服务器也发送 一个只有包头的数据包给客户端，作为返回的数据
+    SendNoBodyPkgToClient(pMsgHeader,_CMD_PING);
+
+    ngx_log_stderr(0,"成功收到了心跳包并返回结果！");
     return true;
 }

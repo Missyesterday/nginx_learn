@@ -160,7 +160,7 @@ int main()
             std::cout << "发送成功" << std::endl;
         } */
        
-        for(int i = 0; i < 100; ++i)
+        for(int i = 0; i < 0; ++i)
         {
         char    recvBuffer[100000] = { 0 };
 	    int rec = RecvCommonData(fd,recvBuffer);
@@ -172,6 +172,7 @@ int main()
 	    sprintf(result,"非常好，接收数据成功，收到字节数是%d个", rec);	
         printf("%s\n", result);
         }
+        sleep(1000);
         close(fd);
         break;
     }

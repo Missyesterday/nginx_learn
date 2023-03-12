@@ -8,6 +8,7 @@
 #include <signal.h> 
 #include <errno.h>
 #include <arpa/inet.h>
+#include <sys/time.h>          //gettimeofday
 
 #include "ngx_macro.h"   //各种宏定义
 #include "ngx_func.h"    //各种函数声明

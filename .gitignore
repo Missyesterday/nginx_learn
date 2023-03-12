@@ -65,3 +65,4 @@ cmake-build-debug-one_gcc
 .DS_Store
 nginx
 test/client
+logs
