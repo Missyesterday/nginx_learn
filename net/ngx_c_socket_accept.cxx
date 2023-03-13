@@ -53,6 +53,16 @@ void CSocket::ngx_event_accept(lpngx_connection_t oldc)
                //所有的子进程都accept这个监听句柄。这样，当新连接过来时，会发现，仅有一个子进程返回新建的连接，其他子进程继续休眠在accept调用上，没有被唤醒。
         //ngx_log_stderr(0,"测试惊群问题，看惊动几个worker进程%d\n",s); 【我的结论是：accept4可以认为基本解决惊群问题，但似乎并没有完全解决，有时候还会惊动其他的worker进程】
 
+        /*
+        if(s == -1)
+        {
+            ngx_log_stderr(0,"惊群测试:ngx_event_accept()中accept失败,进程id=%d",ngx_pid); 
+        }
+        else
+        {
+            ngx_log_stderr(0,"惊群测试:ngx_event_accept()中accept成功,进程id=%d",ngx_pid); 
+        } */     
+
         if(s == -1)
         {
             err = errno;
@@ -78,7 +88,7 @@ void CSocket::ngx_event_accept(lpngx_connection_t oldc)
             {
                 level = NGX_LOG_CRIT;
             }
-            ngx_log_error_core(level,errno,"CSocket::ngx_event_accept()中accept4()失败!");
+            // ngx_log_error_core(level,errno,"CSocket::ngx_event_accept()中accept4()失败!");
 
             if(use_accept4 && err == ENOSYS) //accept4()函数没实现
             {
@@ -103,9 +113,21 @@ void CSocket::ngx_event_accept(lpngx_connection_t oldc)
         //走到这里的，表示accept4()成功了        
         if(m_onlineUserCount >= m_worker_connections)  //用户连接数过多，要关闭该用户socket，因为现在也没分配连接，所以直接关闭即可
         {
-            ngx_log_stderr(0,"超出系统允许的最大连入用户数(最大允许连入数%d)，关闭连入请求(%d)。",m_worker_connections,s);  
+            // ngx_log_stderr(0,"超出系统允许的最大连入用户数(最大允许连入数%d)，关闭连入请求(%d)。",m_worker_connections,s);  
             close(s);
             return ;
+        }
+        //如果某些恶意用户连上来发了1条数据就断，不断连接，会导致频繁调用ngx_get_connection()使用我们短时间内产生大量连接，危及本服务器安全
+        if(m_connectionList.size() > (m_worker_connections * 5))
+        {
+            //比如你允许同时最大2048个连接，但连接池却有了 2048*5这么大的容量，这肯定是表示短时间内 产生大量连接/断开，因为我们的延迟回收机制，这里连接还在垃圾池里没有被回收
+            if(m_freeconnectionList.size() < m_worker_connections)
+            {
+                //整个连接池这么大了，而空闲连接却这么少了，所以我认为是  短时间内 产生大量连接，发一个包后就断开，我们不可能让这种情况持续发生，所以必须断开新入用户的连接
+                //一直到m_freeconnectionList变得足够大【连接池中连接被回收的足够多】
+                close(s);
+                return ;   
+            }
         }
         //ngx_log_stderr(errno,"accept4成功s=%d",s); //s这里就是 一个句柄了
         newc = ngx_get_connection(s);
@@ -154,7 +176,7 @@ void CSocket::ngx_event_accept(lpngx_connection_t oldc)
                                 newc              //连接池中的连接
                                 ) == -1)
                                 */
-         if(ngx_epoll_oper_event(
+        if(ngx_epoll_oper_event(
                                 s,                  //socekt句柄
                                 EPOLL_CTL_ADD,      //事件类型，这里是增加
                                 EPOLLIN|EPOLLRDHUP, //标志，这里代表要增加的标志,EPOLLIN：可读，EPOLLRDHUP：TCP连接的远端关闭或者半关闭,如果使用ET可以增加EPOLLET标记
@@ -196,6 +218,7 @@ void CSocket::ngx_event_accept(lpngx_connection_t oldc)
         {
             AddToTimerQueue(newc);
         }
+        ++m_onlineUserCount; //连入用户数量+1
         break;  //一般就是循环一次就跳出去
     } while (1);   
 

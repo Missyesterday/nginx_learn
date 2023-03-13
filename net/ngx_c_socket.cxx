@@ -50,8 +50,11 @@ CSocket::CSocket()
     m_cur_size_              = 0;     //当前计时队列尺寸
     m_timer_value_           = 0;     //当前计时队列头部的时间值
 
+    m_iDiscardSendPkgCount   = 0;     //丢弃的发送数据包数量
+
     //在线用户相关
     m_onlineUserCount        = 0;     //在线用户数量统计，先给0  
+    m_lastprintTime          = 0;     //上次打印统计信息的时间，先给0
     return;	
 }
 
@@ -250,10 +253,11 @@ bool CSocket::ngx_open_listening_sockets()
             return false;
         }
 
+        //为处理惊群问题使用reuseport
         //setsockopt（）:设置一些套接字参数选项；
         //参数2：是表示级别，和参数3配套使用，也就是说，参数3如果确定了，参数2就确定了;
         //参数3：允许重用本地地址
-        //设置 SO_REUSEADDR，目的第五章第三节讲解的非常清楚：主要是解决TIME_WAIT这个状态导致bind()失败的问题
+        //设置 SO_REUSEADDR主要是解决TIME_WAIT这个状态导致bind()失败的问题
         int reuseaddr = 1;  //1:打开对应的设置项
         if(setsockopt(isock,SOL_SOCKET, SO_REUSEADDR,(const void *) &reuseaddr, sizeof(reuseaddr)) == -1)
         {
@@ -261,6 +265,20 @@ bool CSocket::ngx_open_listening_sockets()
             close(isock); //无需理会是否正常执行了                                                  
             return false;
         }
+
+        //为处理惊群问题使用reuseport
+        
+        int reuseport = 1;
+        if (setsockopt(isock, SOL_SOCKET, SO_REUSEPORT,(const void *) &reuseport, sizeof(int))== -1) //端口复用需要内核支持
+        {
+            //失败就失败吧，失败顶多是惊群，但程序依旧可以正常运行，所以仅仅提示一下即可
+            ngx_log_stderr(errno,"CSocekt::Initialize()中setsockopt(SO_REUSEPORT)失败",i);
+        }
+        //else
+        //{
+        //    ngx_log_stderr(errno,"CSocekt::Initialize()中setsockopt(SO_REUSEPORT)成功");
+        //}
+        
         //设置该socket为非阻塞
         if(setnonblocking(isock) == false)
         {                
@@ -304,7 +322,7 @@ bool CSocket::ngx_open_listening_sockets()
     return true;
 }
 
-//设置socket连接为非阻塞模式【这种函数的写法很固定】：非阻塞，概念在五章四节讲解的非常清楚【不断调用，不断调用这种：拷贝数据的时候是阻塞的】
+//设置socket连接为非阻塞模式【这种函数的写法很固定】：非阻塞【不断调用，不断调用这种：拷贝数据的时候是阻塞的】
 bool CSocket::setnonblocking(int sockfd) 
 {    
     int nb=1; //0：清除，1：设置  
@@ -349,8 +367,35 @@ void CSocket::ngx_close_listening_sockets()
 //将一个待发送消息入到发消息队列中
 void CSocket::msgSend(char *psendbuf) 
 {
+    CMemory *p_memory = CMemory::GetInstance();
+
     CLock lock(&m_sendMessageQueueMutex);  //互斥量
-    m_MsgSendQueue.push_back(psendbuf);    
+
+    //发送消息队列过大也可能给服务器带来风险
+    if(m_iSendMsgQueueCount > 50000)
+    {
+        //发送队列过大，比如客户端恶意不接受数据，就会导致这个队列越来越大
+        //那么可以考虑为了服务器安全，干掉一些数据的发送，虽然有可能导致客户端出现问题，但总比服务器不稳定要好很多
+        m_iDiscardSendPkgCount++;
+        p_memory->FreeMemory(psendbuf);
+		return;
+    }
+    
+    //总体数据并无风险，不会导致服务器崩溃，要看看个体数据，找一下恶意者了    
+    LPSTRUC_MSG_HEADER pMsgHeader = (LPSTRUC_MSG_HEADER)psendbuf;
+	lpngx_connection_t p_Conn = pMsgHeader->pConn;
+    if(p_Conn->iSendCount > 400)
+    {
+        //该用户收消息太慢【或者干脆不收消息】，累积的该用户的发送队列中有的数据条目数过大，认为是恶意用户，直接切断
+        ngx_log_stderr(0,"CSocekt::msgSend()中发现某用户%d积压了大量待发送数据包，切断与他的连接！",p_Conn->fd);      
+        m_iDiscardSendPkgCount++;
+        p_memory->FreeMemory(psendbuf);
+        zdClosesocketProc(p_Conn); //直接关闭
+		return;
+    }
+
+    ++p_Conn->iSendCount; //发送队列中有的数据条目数+1；
+    m_MsgSendQueue.push_back(psendbuf);  
     ++m_iSendMsgQueueCount;   //原子操作
 
     //将信号量的值+1,这样其他卡在sem_wait的就可以走下去
@@ -382,6 +427,7 @@ void CSocket::zdClosesocketProc(lpngx_connection_t p_Conn)
     return;
 }
 //测试是否flood攻击成立，成立则返回true，否则返回false
+//每次收到包都要调用TestFlood函数
 bool CSocket::TestFlood(lpngx_connection_t pConn)
 {
     struct  timeval sCurrTime;   //当前时间结构
@@ -390,9 +436,9 @@ bool CSocket::TestFlood(lpngx_connection_t pConn)
 	
 	gettimeofday(&sCurrTime, NULL); //取得当前时间
     iCurrTime =  (sCurrTime.tv_sec * 1000 + sCurrTime.tv_usec / 1000);  //毫秒
-	if((iCurrTime - pConn->FloodkickLastTime) < m_floodTimeInterval)   //两次收到包的时间 < 100毫秒
+	if((iCurrTime - pConn->FloodkickLastTime) < m_floodTimeInterval)   //两次收到包的时间间隔 < 100毫秒
 	{
-        //发包太频繁记录
+        //则认为发包太频繁, 需要记录
 		pConn->FloodAttackCount++;
 		pConn->FloodkickLastTime = iCurrTime;
 	}
@@ -412,6 +458,34 @@ bool CSocket::TestFlood(lpngx_connection_t pConn)
 	}
 	return reco;
 }
+
+//打印统计信息
+void CSocket::printTDInfo()
+{
+    time_t currtime = time(NULL);
+    if( (currtime - m_lastprintTime) > 10)
+    {
+        //超过10秒我们打印一次,打印太
+        int tmprmqc = g_threadpool.getRecvMsgQueueCount(); //收消息队列
+
+        m_lastprintTime = currtime;
+        int tmpoLUC = m_onlineUserCount;    //atomic做个中转，直接打印atomic类型报错；
+        int tmpsmqc = m_iSendMsgQueueCount; //atomic做个中转，直接打印atomic类型报错；
+        ngx_log_stderr(0,"------------------------------------begin--------------------------------------");
+        ngx_log_stderr(0,"当前在线人数/总人数(%d/%d)。",tmpoLUC,m_worker_connections);        
+        ngx_log_stderr(0,"连接池中空闲连接/总连接/要释放的连接(%d/%d/%d)。",m_freeconnectionList.size(),m_connectionList.size(),m_recyconnectionList.size());
+        ngx_log_stderr(0,"当前时间队列大小(%d)。",m_timerQueuemap.size());        
+        ngx_log_stderr(0,"当前收消息队列/发消息队列大小分别为(%d/%d)，丢弃的待发送数据包数量为%d。",tmprmqc,tmpsmqc,m_iDiscardSendPkgCount);        
+        if( tmprmqc > 100000)
+        {
+            //接收队列过大，报一下，这个属于应该 引起警觉的，考虑限速等等手段
+            ngx_log_stderr(0,"接收队列条目数量过大(%d)，要考虑限速或者增加处理线程数量了！！！！！！",tmprmqc);
+        }
+        ngx_log_stderr(0,"-------------------------------------end---------------------------------------");
+    }
+    return;
+}
+
 //--------------------------------------------------------------------
 //(1)epoll功能初始化，子进程中进行 ，本函数被ngx_worker_process_init()所调用
 int CSocket::ngx_epoll_init()
@@ -680,7 +754,8 @@ int CSocket::ngx_epoll_process_events(int timer)
     }
 
     //会惊群，一个telnet上来，4个worker进程都会被惊动，都执行下边这个
-    //ngx_log_stderr(errno,"惊群测试1:%d",events); 
+    ngx_log_stderr(0,"惊群测试:events=%d,进程id=%d",events,ngx_pid); 
+    ngx_log_stderr(0,"----------------------------------------"); 
 
     //走到这里，就是属于有事件收到了
     lpngx_connection_t p_Conn;
@@ -856,7 +931,8 @@ void* CSocket::ServerSendQueueThread(void* threadData)
                     pos++;
                     continue;
                 }
-            
+                --p_Conn->iSendCount;   //发送队列中有的数据条目数-1；
+                        
                 //走到这里，可以发送消息，一些必须的信息记录，要发送的东西也要从发送队列里干掉
                 p_Conn->psendMemPointer = pMsgBuf;      //发送后释放用的，因为这段内存是new出来的
                 pos2=pos;

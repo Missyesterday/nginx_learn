@@ -137,7 +137,16 @@ void CSocket::ngx_read_request_handler(lpngx_connection_t pConn)
 			pConn->irecvlen = pConn->irecvlen - reco;
         }
     }  //end if(pConn->curStat == _PKG_HD_INIT)
+    
+    if(isflood == true)
+    {
+        //客户端flood服务器，则直接把客户端踢掉
+        ngx_log_stderr(errno,"发现客户端flood，干掉该客户端!");
+        zdClosesocketProc(pConn);
+    }
+
     return;
+
 }
 
 //接收数据专用函数--引入这个函数是为了方便，如果断线，错误之类的，这里直接 释放连接池中连接，然后直接关闭socket，以免在其他函数中还要重复的干这些事
@@ -195,7 +204,14 @@ ssize_t CSocket::recvproc(lpngx_connection_t pConn,char *buff,ssize_t buflen)  /
         else
         {
             //能走到这里的，都表示错误，我打印一下日志，希望知道一下是啥错误，我准备打印到屏幕上
-            ngx_log_stderr(errno,"CSocket::recvproc()中发生错误，我打印出来看看是啥错误！");  //正式运营时可以考虑这些日志打印去掉
+            if(errno == EBADF)  // #define EBADF   9 /* Bad file descriptor */
+            {
+                //因为多线程，偶尔会干掉socket，所以不排除产生这个错误的可能性
+            }
+            else
+            {
+                ngx_log_stderr(errno,"CSocekt::recvproc()中发生错误，我打印出来看看是啥错误！");  //正式运行时可以考虑这些日志打印去掉
+            }
         } 
         
         //ngx_log_stderr(0,"连接被客户端 非 正常关闭！");
@@ -413,16 +429,22 @@ void CSocket::ngx_write_request_handler(lpngx_connection_t pConn)
     }
 
     //能走下来的，要么数据发送完毕了，要么对端断开了，那么执行收尾工作吧；
-
+   /* 调整下顺序，感觉这个顺序不太好
     //数据发送完毕，或者把需要发送的数据干掉，都说明发送缓冲区可能有地方了，让发送线程往下走判断能否发送新数据
     if(sem_post(&m_semEventSendQueue)==-1)       
-        ngx_log_stderr(0,"CSocket::ngx_write_request_handler()中sem_post(&m_semEventSendQueue)失败.");
+        ngx_log_stderr(0,"CSocekt::ngx_write_request_handler()中sem_post(&m_semEventSendQueue)失败.");
 
 
     p_memory->FreeMemory(pConn->psendMemPointer);  //释放内存
     pConn->psendMemPointer = NULL;        
     --pConn->iThrowsendCount;  //建议放在最后执行
-    return;
+    */
+    //调整成新顺序
+    p_memory->FreeMemory(pConn->psendMemPointer);  //释放内存
+    pConn->psendMemPointer = NULL;        
+    --pConn->iThrowsendCount;//这个值恢复了，触发下面一行的信号量才有意义
+    if(sem_post(&m_semEventSendQueue)==-1)       
+        ngx_log_stderr(0,"CSocekt::ngx_write_request_handler()中sem_post(&m_semEventSendQueue)失败.");
 }
 
 //消息处理线程主函数，专门处理各种接收到的TCP消息

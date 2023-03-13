@@ -37,7 +37,7 @@ typedef struct _STRUCT_LOGIN
 
 int  g_iLenPkgHeader = sizeof(COMM_PKG_HEADER);
 
-//发送数据，值得讲解
+//发送数据，
 int SendData(int sSocket, char *p_sendbuf, int ibuflen)
 {
 	int usend = ibuflen; //要发送的数目
@@ -65,8 +65,8 @@ int main()
     //创建CRC32
     CCRC32   *p_crc32 = CCRC32::GetInstance();
     //创建套接字
-    int fd = socket(AF_INET, SOCK_STREAM, 0);
 
+        int fd = socket(AF_INET, SOCK_STREAM, 0);
     //连接服务器
     //
     struct sockaddr_in serveraddr;
@@ -108,14 +108,15 @@ int main()
         //crc值需要最后算的
         pinfohead->crc32   = p_crc32->Get_CRC((unsigned char *)pstruc_sendstruc, sizeof(STRUCT_REGISTER));
         pinfohead->crc32   = htonl(pinfohead->crc32); //针对四字节数字，主机序转网络序
-        for(int i = 0; i < 100; ++i)
-        {
+        // for(int i = 0; i < 10000; ++i)
+        // {
             if(SendData(fd, p_sendbuf, g_iLenPkgHeader + sizeof(STRUCT_REGISTER)) > 0)
                 std::cout << "发送成功" << std::endl;
-        }
+        // }
 	
+        sleep(1000);
 
-        sleep(3);
+        // sleep(3);
 	    delete[] p_sendbuf; //释放上边的内存
         // sprintf(recvBuf, "data : %d\n", i++);
         // //把字符串的结束符带上

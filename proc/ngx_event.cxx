@@ -15,7 +15,9 @@
 void ngx_process_events_and_timers()
 {
     g_socket.ngx_epoll_process_events(-1); //-1表示卡着等待把
-
+    //统计信息打印，考虑到测试的时候总会收到各种数据信息，所以上边的函数调用一般都不会卡住等待收数据
+    g_socket.printTDInfo();
+    
     //...再完善
 }
 

@@ -22,6 +22,7 @@ public:
 
     void inMsgRecvQueueAndSignal(char *buf);        //收到一个完整消息后，入消息队列，并触发线程池中线程来处理该消息
     void Call();                                    //来任务了，调一个线程池中的线程下来干活  
+    int  getRecvMsgQueueCount(){return m_iRecvMsgQueueCount;} //获取接收消息队列大小
 
 private:
     static void* ThreadFunc(void *threadData);      //新线程的线程回调函数    

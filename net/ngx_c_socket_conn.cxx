@@ -53,6 +53,8 @@ void ngx_connection_s::GetOneToUse()
     
     FloodkickLastTime = 0;                            //Flood攻击上次收到包的时间
 	FloodAttackCount  = 0;	                          //Flood攻击在该时间内收到包的次数统计
+
+    iSendCount        = 0;                            //发送队列中有的数据条目数，若client只发不收，则可能造成此数过大，依据此数做出踢出处理 
 }
 
 //回收回来一个连接的时候做一些事,保证内存不泄漏

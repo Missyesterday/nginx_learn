@@ -85,6 +85,7 @@ struct ngx_connection_s
 	//和网络安全有关	
 	uint64_t                  FloodkickLastTime;              //Flood攻击上次收到包的时间
 	int                       FloodAttackCount;               //Flood攻击在该时间内收到包的次数统计
+    std::atomic<int>          iSendCount;                     //发送队列中有的数据条目数，若client只发不收，则可能造成此数过大，依据此数做出踢出处理 
 	
 	//--------------------------------------------------
 	lpngx_connection_t        next;                           //这是个指针，指向下一个本类型对象，用于把空闲的连接池对象串起来构成一个单向链表，方便取用
@@ -108,6 +109,8 @@ public:
 	virtual bool Initialize();                                            //初始化函数[父进程中执行]
 	virtual bool Initialize_subproc();                                    //初始化函数[子进程中执行]
 	virtual void Shutdown_subproc();                                      //关闭退出函数[子进程中执行]
+    void printTDInfo();                                                   //打印统计信息
+
 
 public:
 	virtual void threadRecvProcFunc(char *pMsgBuf);                       //处理客户端请求，虚函数，因为将来可以考虑自己来写子类继承本类
@@ -242,6 +245,10 @@ private:
 	int                            m_floodAkEnable;                       //Flood攻击检测是否开启,1：开启   0：不开启
 	unsigned int                   m_floodTimeInterval;                   //表示每次收到数据包的时间间隔是100(毫秒)
 	int                            m_floodKickCount;                      //累积多少次踢出此人
+    
+    //统计用途
+	time_t                         m_lastprintTime;                       //上次打印统计信息的时间(10秒钟打印一次)
+	int                            m_iDiscardSendPkgCount;                //丢弃的发送数据包数量
 };
 
 #endif
