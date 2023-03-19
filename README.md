@@ -12,7 +12,9 @@ nginx的源码在`src/`目录下，可以使用VSCode查看源码。
 `src/core/nginx.c`
 
 ## IO模型
-![](pic/%E9%A1%B9%E7%9B%AEIO%E6%A8%A1%E5%9E%8B.pdf)
+
+
+![](pic/%E9%A1%B9%E7%9B%AEIO%E6%A8%A1%E5%9E%8B.svg)
 
 ## 项目的目录规划
 
