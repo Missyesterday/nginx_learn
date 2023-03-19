@@ -135,6 +135,7 @@ void* CThreadPool::ThreadFunc(void* threadData)
             //刚开始执行pthread_cond_wait()的时候，会卡在这里，而且m_pthreadMutex会被释放掉；
             //第一个线程释放,第二个线程就可以向后走
             //如果有100个线程, 那个100个线程都会卡在这里等待任务
+            //这个函数调用,会释放锁, 返回的时候会加锁
             pthread_cond_wait(&m_pthreadCond, &m_pthreadMutex); //整个服务器程序刚初始化的时候，所有线程必然是卡在这里等待的；
             //ngx_log_stderr(0,"执行了pthread_cond_wait-------------end");
         }

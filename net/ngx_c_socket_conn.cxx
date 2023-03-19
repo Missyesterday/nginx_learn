@@ -42,7 +42,7 @@ void ngx_connection_s::GetOneToUse()
 
     fd  = -1;                                         //开始先给-1
     curStat = _PKG_HD_INIT;                           //收包状态处于 初始状态，准备接收数据包头【状态机】
-    precvbuf = dataHeadInfo;                          //收包我要先收到这里来，因为我要先收包头，所以收数据的buff直接就是dataHeadInfo
+    precvbuf = dataHeadInfo;                          //收包要先收到这里来，因为我要先收包头，所以收数据的buff直接就是dataHeadInfo
     irecvlen = sizeof(COMM_PKG_HEADER);               //这里指定收数据的长度，这里先要求收包头这么长字节的数据
     
     precvMemPointer = NULL;                           //既然没new内存，那自然指向的内存地址先给NULL
@@ -131,7 +131,7 @@ lpngx_connection_t CSocket::ngx_get_connection(int isock)
     //走到这里，表示没空闲的连接了，那就考虑重新创建一个连接
     CMemory *p_memory = CMemory::GetInstance();
     lpngx_connection_t p_Conn = (lpngx_connection_t)p_memory->AllocMemory(sizeof(ngx_connection_t),true);
-    p_Conn = new(p_Conn) ngx_connection_t();
+    p_Conn = new(p_Conn) ngx_connection_t(); //定位new
     p_Conn->GetOneToUse();
     m_connectionList.push_back(p_Conn); //入到总表中来，但不能入到空闲表中来，因为凡是调这个函数的，肯定是要用这个连接的
     ++m_total_connection_n;             
@@ -177,7 +177,7 @@ lpngx_connection_t CSocket::ngx_get_connection(int isock)
 
 
     //(3)这个值有用，所以在上边(1)中被保留，没有被清空，这里又把这个值赋回来
-    c->instance = !instance;                            //抄自官方nginx，到底有啥用，以后再说【分配内存时候，连接池里每个连接对象这个变量给的值都为1，所以这里取反应该是0【有效】；】
+    c->instance = !instance;                            
     c->iCurrsequence=iCurrsequence;++c->iCurrsequence;  //每次取用该值都增加1
 
     //wev->write = 1;  这个标记有没有 意义加，后续再研究
@@ -254,7 +254,7 @@ void CSocket::inRecyConnectQueue(lpngx_connection_t pConn)
 	}
     if(iffind == true) //找到了，不必再入了
 	{
-		//我有义务保证这个只入一次嘛
+		//我有义务保证这个只入一次
         return;
     }
     pConn->inRecyTime = time(NULL);        //记录回收时间
@@ -279,6 +279,7 @@ void* CSocket::ServerRecyConnectionThread(void* threadData)
     while(1)
     {
         //为简化问题，我们直接每次休息200毫秒
+        //事实上,在服务器程序中,不要出现sleep函数(陈硕)
         usleep(200 * 1000);  //单位是微妙,又因为1毫秒=1000微妙，所以 200 *1000 = 200毫秒
 
         //不管啥情况，先把这个条件成立时该做的动作做了
@@ -311,17 +312,18 @@ lblRRTD:
                 {
                     //这确实不应该，打印个日志吧；
                     ngx_log_stderr(0,"CSocket::ServerRecyConnectionThread()中到释放时间却发现p_Conn.iThrowsendCount!=0，这个不该发生");
-                    //其他先暂时啥也不敢，路程继续往下走，继续去释放吧。
+                    //其他的先不管
                 }
 
 
-                //流程走到这里，表示可以释放，那我们就开始释放
+                //流程走到这里，表示可以释放
                 --pSocketObj->m_totol_recyconnection_n;        //待释放连接队列大小-1
                 pSocketObj->m_recyconnectionList.erase(pos);   //迭代器已经失效，但pos所指内容在p_Conn里保存着呢
 
                 // ngx_log_stderr(0,"CSocket::ServerRecyConnectionThread()执行，连接%d被归还.",p_Conn->fd);
 
                 pSocketObj->ngx_free_connection(p_Conn);	   //归还参数pConn所代表的连接到到连接池中
+                //循环, 释放,知道待释放消息队列为空
                 goto lblRRTD; 
             } //end for
             err = pthread_mutex_unlock(&pSocketObj->m_recyconnqueueMutex); 

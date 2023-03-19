@@ -30,7 +30,7 @@ int ngx_daemon()
         //子进程，走到这里直接break;
         break;
     default:
-        //父进程以往 直接退出exit(0);现在希望回到主流程去释放一些资源
+        //父进程走到这里 直接退出exit(0);现在希望回到主流程去释放一些资源
         return 1;  //父进程直接返回1
     } //end switch
 
@@ -55,11 +55,14 @@ int ngx_daemon()
         ngx_log_error_core(NGX_LOG_EMERG,errno,"ngx_daemon()中open(\"/dev/null\")失败!");        
         return -1;
     }
+
+    //把输入STDIN_FILENO重定向到 /dev/null
     if (dup2(fd, STDIN_FILENO) == -1) //先关闭STDIN_FILENO[这是规矩，已经打开的描述符，动他之前，先close]，类似于指针指向null，让/dev/null成为标准输入；
     {
         ngx_log_error_core(NGX_LOG_EMERG,errno,"ngx_daemon()中dup2(STDIN)失败!");        
         return -1;
     }
+    //同上
     if (dup2(fd, STDOUT_FILENO) == -1) //再关闭STDIN_FILENO，类似于指针指向null，让/dev/null成为标准输出；
     {
         ngx_log_error_core(NGX_LOG_EMERG,errno,"ngx_daemon()中dup2(STDOUT)失败!");

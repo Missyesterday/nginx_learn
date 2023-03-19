@@ -45,7 +45,7 @@ static const handler statusHandler[] =
     //开始处理具体的业务逻辑
     &CLogicSocket::_HandleRegister,                         //【5】：实现具体的注册功能
     &CLogicSocket::_HandleLogIn,                            //【6】：实现具体的登录功能
-    //......其他待扩展，比如实现攻击功能，实现加血功能等等；
+    //......其他待扩展
 
 
 };
@@ -160,7 +160,7 @@ void CLogicSocket::procPingTimeOutChecking(LPSTRUC_MSG_HEADER tmpmsg,time_t cur_
         lpngx_connection_t p_Conn = tmpmsg->pConn;
 
         //超时踢的判断标准就是 每次检查的时间间隔*3，超过这个时间没发送心跳包，就踢【可以根据实际情况自由设定】
-               if(/*m_ifkickTimeCount == 1 && */m_ifTimeOutKick == 1)  //能调用到本函数第一个条件肯定成立，所以第一个条件加不加无所谓，主要是第二个条件
+        if(/*m_ifkickTimeCount == 1 && */m_ifTimeOutKick == 1)  //能调用到本函数第一个条件肯定成立，所以第一个条件加不加无所谓，主要是第二个条件
         {
             //到时间直接踢出去的需求
             // ngx_log_stderr(0, "时间到了，踢出客户");

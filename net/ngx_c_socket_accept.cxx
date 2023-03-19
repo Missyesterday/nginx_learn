@@ -50,7 +50,7 @@ void CSocket::ngx_event_accept(lpngx_connection_t oldc)
         //惊群，有时候不一定完全惊动所有4个worker进程，可能只惊动其中2个等等，其中一个成功其余的accept4()都会返回-1；错误 (11: Resource temporarily unavailable【资源暂时不可用】) 
         //所以参考资料：https://blog.csdn.net/russell_tao/article/details/7204260
         //其实，在linux2.6内核上，accept系统调用已经不存在惊群了（至少我在2.6.18内核版本上已经不存在）。可以写个简单的程序试下，在父进程中bind,listen，然后fork出子进程，
-               //所有的子进程都accept这个监听句柄。这样，当新连接过来时，会发现，仅有一个子进程返回新建的连接，其他子进程继续休眠在accept调用上，没有被唤醒。
+        //所有的子进程都accept这个监听句柄。这样，当新连接过来时，会发现，仅有一个子进程返回新建的连接，其他子进程继续休眠在accept调用上，没有被唤醒。
         //ngx_log_stderr(0,"测试惊群问题，看惊动几个worker进程%d\n",s); 【我的结论是：accept4可以认为基本解决惊群问题，但似乎并没有完全解决，有时候还会惊动其他的worker进程】
 
         /*
@@ -68,7 +68,7 @@ void CSocket::ngx_event_accept(lpngx_connection_t oldc)
             err = errno;
 
             //对accept、send和recv而言，事件未发生时errno通常被设置成EAGAIN（意为“再来一次”）或者EWOULDBLOCK（意为“期待阻塞”）
-            if(err == EAGAIN) //accept()没准备好，这个EAGAIN错误EWOULDBLOCK是一样的
+            if(err == EAGAIN || err == EWOULDBLOCK) //accept()没准备好，这个EAGAIN错误EWOULDBLOCK是一样的
             {
                 //除非你用一个循环不断的accept()取走所有的连接，不然一般不会有这个错误【我们这里只取一个连接】
                 return ;
@@ -82,7 +82,7 @@ void CSocket::ngx_event_accept(lpngx_connection_t oldc)
                         //服务器进程一般可以忽略该错误，直接再次调用accept。
                 level = NGX_LOG_ERR;
             } 
-            else if (err == EMFILE || err == ENFILE) //EMFILE:进程的fd已用尽【已达到系统所允许单一进程所能打开的文件/套接字总数】。可参考：https://blog.csdn.net/sdn_prc/article/details/28661661   以及 https://bbs.csdn.net/topics/390592927
+            if (err == EMFILE || err == ENFILE) //EMFILE:进程的fd已用尽【已达到系统所允许单一进程所能打开的文件/套接字总数】。可参考：https://blog.csdn.net/sdn_prc/article/details/28661661   以及 https://bbs.csdn.net/topics/390592927
                                                         //ulimit -n ,看看文件描述符限制,如果是1024的话，需要改大;  打开的文件句柄数过多 ,把系统的fd软限制和硬限制都抬高.
                                                     //ENFILE这个errno的存在，表明一定存在system-wide的resource limits，而不仅仅有process-specific的resource limits。按照常识，process-specific的resource limits，一定受限于system-wide的resource limits。
             {
@@ -96,7 +96,7 @@ void CSocket::ngx_event_accept(lpngx_connection_t oldc)
                 continue;         //回去重新用accept()函数搞
             }
 
-            if (err == ECONNABORTED)  //对方关闭套接字
+           /*  if (err == ECONNABORTED)  //对方关闭套接字
             {
                 //这个错误因为可以忽略，所以不用干啥
                 //do nothing
@@ -105,8 +105,8 @@ void CSocket::ngx_event_accept(lpngx_connection_t oldc)
             if (err == EMFILE || err == ENFILE) 
             {
                 //do nothing，这个官方做法是先把读事件从listen socket上移除，然后再弄个定时器，定时器到了则继续执行该函数，但是定时器到了有个标记，会把读事件增加到listen socket上去；
-                //我这里目前先不处理吧【因为上边已经写这个日志了】；
-            }            
+                //不处理【因为上边已经写这个日志了】；
+            } */            
             return;
         }  //end if(s == -1)
 

@@ -859,8 +859,6 @@ int CSocket::ngx_epoll_process_events(int timer)
 
 //--------------------------------------------------------------------
 //处理发送消息队列的线程
-//原准备用线程处理，但线程也有线程的问题，如果连接池中连接被主流程回收了，很可能这里的代码执行过程中所操纵的连接是 已经被回收的，这会导致程序不稳定；
-//为简化问题，我们不用线程了
 void* CSocket::ServerSendQueueThread(void* threadData)
 {    
     ThreadItem *pThread = static_cast<ThreadItem*>(threadData);
@@ -885,7 +883,7 @@ void* CSocket::ServerSendQueueThread(void* threadData)
         if(sem_wait(&pSocketObj->m_semEventSendQueue) == -1)
         {
             //失败？及时报告，其他的也不好干啥
-            if(errno != EINTR) //这个我就不算个错误了【当阻塞于某个慢系统调用的一个进程捕获某个信号且相应信号处理函数返回时，该系统调用可能返回一个EINTR错误。】
+            if(errno != EINTR) //【当阻塞于某个慢系统调用的一个进程捕获某个信号且相应信号处理函数返回时，该系统调用可能返回一个EINTR错误。】
                 ngx_log_stderr(errno,"CSocket::ServerSendQueueThread()中sem_wait(&pSocketObj->m_semEventSendQueue)失败.");            
         }
 
