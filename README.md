@@ -12,7 +12,7 @@ nginx的源码在`src/`目录下，可以使用VSCode查看源码。
 `src/core/nginx.c`
 
 ## 多线程模型
-![]()
+![](pic/%E7%BA%BF%E7%A8%8B.svg)
 
 服务器的多线程模型如上图所示.
 
