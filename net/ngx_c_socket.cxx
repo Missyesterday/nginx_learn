@@ -650,7 +650,7 @@ int CSocket::ngx_epoll_oper_event(
                         int                fd,               //句柄，一个socket
                         uint32_t           eventtype,        //事件类型，一般是EPOLL_CTL_ADD，EPOLL_CTL_MOD，EPOLL_CTL_DEL ，说白了就是操作epoll红黑树的节点(增加，修改，删除)
                         uint32_t           flag,             //标志，具体含义取决于eventtype
-                        int                bcaction,         //补充动作，用于补充flag标记的不足  :  0：增加   1：去掉
+                        int                bcaction,         //补充动作，用于补充flag标记的不足  :  0：增加   1：去掉 其他参数则是完全覆盖
                         lpngx_connection_t pConn             //pConn：一个指针【其实是一个连接】，EPOLL_CTL_ADD时增加到红黑树中去，将来epoll_wait时能取出来用
                         )
 {
@@ -908,7 +908,7 @@ void* CSocket::ServerSendQueueThread(void* threadData)
                 p_Conn = pMsgHeader->pConn;
 
                 //包过期，因为如果 这个连接被回收，比如在ngx_close_connection(),inRecyConnectQueue()中都会自增iCurrsequence
-                     //而且这里有没必要针对 本连接 来用m_connectionMutex临界 ,只要下面条件成立，肯定是客户端连接已断，要发送的数据肯定不需要发送了
+                //而且这里有没必要针对 本连接 来用m_connectionMutex临界 ,只要下面条件成立，肯定是客户端连接已断，要发送的数据肯定不需要发送了
                 if(p_Conn->iCurrsequence != pMsgHeader->iCurrsequence) 
                 {
                     //本包中保存的序列号与p_Conn【连接池中连接】中实际的序列号已经不同，丢弃此消息，小心处理该消息的删除
@@ -942,11 +942,11 @@ void* CSocket::ServerSendQueueThread(void* threadData)
                 p_Conn->isendlen = itmp;                 //要发送多少数据，因为发送数据不一定全部都能发送出去，我们需要知道剩余有多少数据还没发送
                                 
                 //这里是重点，我们采用 epoll水平触发的策略，能走到这里的，都应该是还没有投递 写事件 到epoll中
-                    //epoll水平触发发送数据的改进方案：
-	                //开始不把socket写事件通知加入到epoll,当我需要写数据的时候，直接调用write/send发送数据；
-	                //如果返回了EAGIN【发送缓冲区满了，需要等待可写事件才能继续往缓冲区里写数据】，此时，我再把写事件通知加入到epoll，
-	                //此时，就变成了在epoll驱动下写数据，全部数据发送完毕后，再把写事件通知从epoll中干掉；
-	                //优点：数据不多的时候，可以避免epoll的写事件的增加/删除，提高了程序的执行效率；                         
+                //epoll水平触发发送数据的改进方案：
+	            //开始不把socket写事件通知加入到epoll,当我需要写数据的时候，直接调用write/send发送数据；
+	            //如果返回了EAGIN【发送缓冲区满了，需要等待可写事件才能继续往缓冲区里写数据】，此时，我再把写事件通知加入到epoll，
+	            //此时，就变成了在epoll驱动下写数据，全部数据发送完毕后，再把写事件通知从epoll中干掉；
+	            //优点：数据不多的时候，可以避免epoll的写事件的增加/删除，提高了程序的执行效率；                         
                 //(1)直接调用write或者send发送数据
                 // ngx_log_stderr(errno,"即将发送数据%ud。",p_Conn->isendlen);
 

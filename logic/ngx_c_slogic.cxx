@@ -36,7 +36,7 @@ typedef bool (CLogicSocket::*handler)(  lpngx_connection_t pConn,      //连接�
 static const handler statusHandler[] = 
 {
     //数组前5个元素，保留，以备将来增加一些基本服务器功能
-    NULL,                                                   //【0】：下标从0开始
+    &CLogicSocket::_HandlePing,    
     NULL,                                                   //【1】：下标从0开始
     NULL,                                                   //【2】：下标从0开始
     NULL,                                                   //【3】：下标从0开始

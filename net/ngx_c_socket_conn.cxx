@@ -290,10 +290,9 @@ void* CSocket::ServerRecyConnectionThread(void* threadData)
             err = pthread_mutex_lock(&pSocketObj->m_recyconnqueueMutex);  
             if(err != 0) ngx_log_stderr(err,"CSocket::ServerRecyConnectionThread()中pthread_mutex_lock()失败，返回的错误码为%d!",err);
 
-lblRRTD:
             pos    = pSocketObj->m_recyconnectionList.begin();
 			posend = pSocketObj->m_recyconnectionList.end();
-            for(; pos != posend; ++pos)
+            for(; pos != posend; )
             {
                 p_Conn = (*pos);
                 if(
@@ -302,6 +301,7 @@ lblRRTD:
                     )
                 {
                     continue; //没到释放的时间
+                    pos++;
                 }    
                 //到释放的时间了: 
                 //......这将来可能还要做一些是否能释放的判断[在我们写完发送数据代码之后吧]，先预留位置
@@ -315,16 +315,16 @@ lblRRTD:
                     //其他的先不管
                 }
 
-
                 //流程走到这里，表示可以释放
-                --pSocketObj->m_totol_recyconnection_n;        //待释放连接队列大小-1
-                pSocketObj->m_recyconnectionList.erase(pos);   //迭代器已经失效，但pos所指内容在p_Conn里保存着呢
+                else{
+                    --pSocketObj->m_totol_recyconnection_n;        //待释放连接队列大小-1
+                    pos = pSocketObj->m_recyconnectionList.erase(pos);   //迭代器已经失效，但pos所指内容在p_Conn里保存着呢
 
-                // ngx_log_stderr(0,"CSocket::ServerRecyConnectionThread()执行，连接%d被归还.",p_Conn->fd);
+                    // ngx_log_stderr(0,"CSocket::ServerRecyConnectionThread()执行，连接%d被归还.",p_Conn->fd);
 
-                pSocketObj->ngx_free_connection(p_Conn);	   //归还参数pConn所代表的连接到到连接池中
-                //循环, 释放,知道待释放消息队列为空
-                goto lblRRTD; 
+                    pSocketObj->ngx_free_connection(p_Conn);	   //归还参数pConn所代表的连接到到连接池中
+                    //循环, 释放,直到待释放消息队列为空
+                }
             } //end for
             err = pthread_mutex_unlock(&pSocketObj->m_recyconnqueueMutex); 
             if(err != 0)  ngx_log_stderr(err,"CSocket::ServerRecyConnectionThread()pthread_mutex_unlock()失败，返回的错误码为%d!",err);
@@ -338,16 +338,14 @@ lblRRTD:
                 err = pthread_mutex_lock(&pSocketObj->m_recyconnqueueMutex);  
                 if(err != 0) ngx_log_stderr(err,"CSocket::ServerRecyConnectionThread()中pthread_mutex_lock2()失败，返回的错误码为%d!",err);
 
-        lblRRTD2:
                 pos    = pSocketObj->m_recyconnectionList.begin();
 			    posend = pSocketObj->m_recyconnectionList.end();
-                for(; pos != posend; ++pos)
+                for(; pos != posend; )
                 {
                     p_Conn = (*pos);
                     --pSocketObj->m_totol_recyconnection_n;        //待释放连接队列大小-1
-                    pSocketObj->m_recyconnectionList.erase(pos);   //迭代器已经失效，但pos所指内容在p_Conn里保存着呢
+                    pos = pSocketObj->m_recyconnectionList.erase(pos);   //迭代器已经失效，但pos所指内容在p_Conn里保存着呢
                     pSocketObj->ngx_free_connection(p_Conn);	   //归还参数pConn所代表的连接到到连接池中
-                    goto lblRRTD2; 
                 } //end for
                 err = pthread_mutex_unlock(&pSocketObj->m_recyconnqueueMutex); 
                 if(err != 0)  ngx_log_stderr(err,"CSocket::ServerRecyConnectionThread()pthread_mutex_unlock2()失败，返回的错误码为%d!",err);

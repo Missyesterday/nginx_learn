@@ -21,7 +21,7 @@ static void ngx_worker_process_init(int inum);
 //变量声明
 static u_char  master_process[] = "master process";
 
-//描述：父进程的循环,父进程创建worker子进程,并返回这个函数的循环
+//父进程的循环,父进程创建worker子进程,并返回这个函数的循环
 void ngx_master_process_cycle()
 {    
     sigset_t set;        //创建信号集
@@ -29,7 +29,7 @@ void ngx_master_process_cycle()
     sigemptyset(&set);   //清空信号集
 
     //下列这些信号在执行本函数期间不希望收到【考虑到官方nginx中有这些信号】（保护不希望由信号中断的代码临界区）
-    //建议fork()子进程时学习这种写法，防止信号的干扰；
+    //建议fork()子进程时使用这种写法，防止信号的干扰；
     //执行这个 函数的时候, 不要让这些信号干扰我
     sigaddset(&set, SIGCHLD);     //子进程状态改变
     sigaddset(&set, SIGALRM);     //定时器超时
